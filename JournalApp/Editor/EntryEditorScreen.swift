@@ -123,6 +123,8 @@ struct EntryEditorContent: View {
                         .padding(.horizontal)
                         .padding(.bottom, 8)
                         .transition(.move(edge: .bottom).combined(with: .opacity))
+                } else {
+                    keyboardBar
                 }
             }
             .animation(.snappy, value: focus == nil)
@@ -230,46 +232,87 @@ struct EntryEditorContent: View {
                 Label("More", systemImage: "ellipsis")
             }
         }
-        ToolbarItemGroup(placement: .keyboard) {
-            if focus == .body {
-                // Bold, italic and underline stay one tap away; the rest live in one menu
-                // so the toolbar fits on the narrowest iPhone.
-                ForEach([RichTextStyle.bold, .italic, .underline]) { style in
-                    styleButton(style)
-                }
-                Menu {
-                    styleButton(.strikethrough)
-                    styleButton(.heading)
-                    Divider()
-                    Button { RichTextFormatting.insertListItem(.bullet, in: &model.text, selection: &model.selection) } label: {
-                        Label("Bulleted List", systemImage: "list.bullet")
+    }
+
+    // MARK: Keyboard bar
+
+    // DECISION: drawn in the view rather than as a .keyboard toolbar, because the system
+    // puts an opaque strip behind keyboard toolbars that doesn't match the page. This bar
+    // floats over the writing area and rides on top of the keyboard via the safe area.
+    private var keyboardBar: some View {
+        GlassEffectContainer {
+            HStack {
+                if focus == .body {
+                    // Bold, italic and underline stay one tap away; the rest live in one menu
+                    // so the bar fits on the narrowest iPhone.
+                    HStack(spacing: 4) {
+                        ForEach([RichTextStyle.bold, .italic, .underline]) { style in
+                            styleButton(style)
+                        }
+                        Menu {
+                            ForEach([RichTextStyle.strikethrough, .heading]) { style in
+                                Button { toggle(style) } label: {
+                                    Label { Text(style.label) } icon: { Image(systemName: style.symbolName) }
+                                }
+                            }
+                            Divider()
+                            Button { RichTextFormatting.insertListItem(.bullet, in: &model.text, selection: &model.selection) } label: {
+                                Label("Bulleted List", systemImage: "list.bullet")
+                            }
+                            Button { RichTextFormatting.insertListItem(.numbered, in: &model.text, selection: &model.selection) } label: {
+                                Label("Numbered List", systemImage: "list.number")
+                            }
+                        } label: {
+                            barIcon("More Formatting", systemImage: "textformat")
+                        }
                     }
-                    Button { RichTextFormatting.insertListItem(.numbered, in: &model.text, selection: &model.selection) } label: {
-                        Label("Numbered List", systemImage: "list.number")
+                    .padding(.horizontal, 6)
+                    .glassEffect(.regular.interactive())
+                }
+                Spacer(minLength: 8)
+                HStack(spacing: 4) {
+                    Menu {
+                        ForEach(EditorAction.allCases) { action in
+                            Button { perform(action) } label: { Label { Text(action.title) } icon: { Image(systemName: action.symbolName) } }
+                        }
+                    } label: {
+                        barIcon("Add", systemImage: "plus.circle")
                     }
-                } label: {
-                    Label("More Formatting", systemImage: "textformat")
+                    Button { focus = nil } label: {
+                        barIcon("Done", systemImage: "keyboard.chevron.compact.down")
+                    }
                 }
+                .padding(.horizontal, 6)
+                .glassEffect(.regular.interactive())
             }
-            Spacer()
-            Menu {
-                ForEach(EditorAction.allCases) { action in
-                    Button { perform(action) } label: { Label { Text(action.title) } icon: { Image(systemName: action.symbolName) } }
-                }
-            } label: {
-                Label("Add", systemImage: "plus.circle")
-            }
-            Button { focus = nil } label: { Label("Done", systemImage: "keyboard.chevron.compact.down") }
         }
+        .padding(.horizontal)
+        .padding(.bottom, 6)
+        .transition(.opacity)
+    }
+
+    private func barIcon(_ title: LocalizedStringKey, systemImage: String) -> some View {
+        Label(title, systemImage: systemImage)
+            .labelStyle(.iconOnly)
+            .font(.title3)
+            .frame(width: 44, height: 44)
+            .contentShape(.rect)
     }
 
     private func styleButton(_ style: RichTextStyle) -> some View {
-        Button {
-            RichTextFormatting.toggle(style, in: &model.text, selection: &model.selection, context: fontContext, baseFont: Self.bodyFont(serif: usesSerifBody))
-        } label: {
+        Button { toggle(style) } label: {
             Label { Text(style.label) } icon: { Image(systemName: style.symbolName) }
+                .labelStyle(.iconOnly)
+                .font(.title3)
+                .frame(width: 44, height: 44)
+                .contentShape(.rect)
         }
-        .tint(RichTextFormatting.isActive(style, in: model.text, selection: model.selection, context: fontContext) ? .accentColor : .primary)
+        .buttonStyle(.plain)
+        .foregroundStyle(RichTextFormatting.isActive(style, in: model.text, selection: model.selection, context: fontContext) ? AnyShapeStyle(.tint) : AnyShapeStyle(.primary))
+    }
+
+    private func toggle(_ style: RichTextStyle) {
+        RichTextFormatting.toggle(style, in: &model.text, selection: &model.selection, context: fontContext, baseFont: Self.bodyFont(serif: usesSerifBody))
     }
 
     // MARK: Chips
