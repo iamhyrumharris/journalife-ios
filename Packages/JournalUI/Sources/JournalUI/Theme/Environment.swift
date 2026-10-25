@@ -10,4 +10,6 @@ public extension EnvironmentValues {
     @Entry var showsRowThumbnails: Bool = false
     /// Use New York (serif) for entry body text.
     @Entry var usesSerifBody: Bool = false
+    /// Size of entry body text (Settings, default Large).
+    @Entry var entryTextSize: EntryTextSize = .large
 }

@@ -9,6 +9,8 @@ struct EntryEditorScreen: View {
 
     @Environment(AppModel.self) private var app
     @Environment(\.usesSerifBody) private var usesSerifBody
+    @Environment(\.entryTextSize) private var textSize
+    @ScaledMetric(relativeTo: .body) private var textScale: CGFloat = 1
     @State private var model: EntryEditorModel?
 
     var body: some View {
@@ -25,7 +27,7 @@ struct EntryEditorScreen: View {
         .background { JournalColors.background.ignoresSafeArea() }
         .onAppear {
             if model == nil {
-                model = EntryEditorModel(entryID: entryID, app: app, baseFont: EntryEditorContent.bodyFont(serif: usesSerifBody))
+                model = EntryEditorModel(entryID: entryID, app: app, fonts: EntryFonts(size: textSize.points * textScale, serif: usesSerifBody))
             }
         }
         .onDisappear { model?.viewDidDisappear() }
@@ -45,7 +47,14 @@ struct EntryEditorContent: View {
     @Environment(AppModel.self) private var app
     @Environment(\.fontResolutionContext) private var fontContext
     @Environment(\.usesSerifBody) private var usesSerifBody
+    @Environment(\.entryTextSize) private var textSize
+    @ScaledMetric(relativeTo: .body) private var textScale: CGFloat = 1
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @FocusState private var focus: EditorField?
+    @State private var isGridRaised = true
+    @State private var gridHeight: CGFloat = 0
+    @State private var keyboardLift: CGFloat = 0
+    @State private var unshrunkBottom: CGFloat = 0
     @State private var sheet: EditorSheet?
     @State private var pickerItems: [PhotosPickerItem] = []
     @State private var isShowingPhotoPicker = false
@@ -55,8 +64,9 @@ struct EntryEditorContent: View {
     @State private var comingSoon: LocalizedStringResource?
     @State private var permissionMessage: LocalizedStringResource?
 
-    static func bodyFont(serif: Bool) -> Font {
-        serif ? .system(.body, design: .serif) : .body
+    /// Body and heading fonts at the chosen Text Size, scaled with Dynamic Type.
+    private var fonts: EntryFonts {
+        EntryFonts(size: textSize.points * textScale, serif: usesSerifBody)
     }
 
     private var entry: Entry? { model.entry }
@@ -120,22 +130,53 @@ struct EntryEditorContent: View {
         editorColumn
             .safeAreaInset(edge: .bottom) {
                 if focus == nil {
-                    EditorActionGrid(perform: perform)
-                        .padding(.horizontal)
-                        .padding(.bottom, 8)
-                        .modifier(SlideUpAfterKeyboard())
-                        .transition(.identity)
+                    // Keeps the text clear of the action grid, which floats in the overlay below.
+                    Color.clear.frame(height: gridHeight)
                 } else {
                     keyboardBar
-                        // Leave at once: fading out, it drifted down over the grid as the keyboard closed.
-                        .transition(.identity)
+                        // Fade in just after the grid starts dropping, so the two never overlap. Leave at
+                        // once: fading out, it drifted down over the grid as the keyboard closed.
+                        .transition(.asymmetric(
+                            insertion: .opacity.animation(.easeOut(duration: 0.15).delay(0.1)),
+                            removal: .identity
+                        ))
                 }
             }
-            .animation(.snappy, value: focus == nil)
+            // The grid lives in its own layer pinned to the screen bottom so it can slide on its own
+            // schedule. The keyboard covers it as it rises and uncovers it as it goes.
+            .overlay(alignment: .bottom) {
+                EditorActionGrid(perform: perform)
+                    .padding(.horizontal)
+                    .padding(.bottom, 8)
+                    .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { gridHeight = $0 }
+                    // Push back down by however much the keyboard has shortened the screen, so the
+                    // grid stays at the bottom (and drops away) instead of riding up with the keyboard.
+                    .offset(y: keyboardLift + (isGridRaised || reduceMotion ? 0 : gridHeight + 80))
+                    .opacity(isGridRaised ? 1 : 0)
+                    .allowsHitTesting(isGridRaised)
+            }
+            .onGeometryChange(for: CGFloat.self) { $0.frame(in: .global).maxY } action: { bottom in
+                if focus == nil && keyboardLift == 0 { unshrunkBottom = bottom }
+                keyboardLift = max(0, unshrunkBottom - bottom)
+            }
+            .onChange(of: focus == nil) { _, isUnfocused in
+                // DECISION: iOS raises the keyboard the moment a field is tapped, so the buttons can't
+                // truly leave first without delaying focus, which would break tap-to-place-cursor.
+                // Instead they drop away fast (0.15 s), well ahead of the keyboard's ~0.35 s rise,
+                // and come back up only after the keyboard has gone (0.25 s).
+                if isUnfocused {
+                    withAnimation((reduceMotion ? Animation.easeOut(duration: 0.2) : .spring(duration: 0.45, bounce: 0.25)).delay(0.25)) {
+                        isGridRaised = true
+                    }
+                } else {
+                    withAnimation(.easeIn(duration: 0.15)) { isGridRaised = false }
+                }
+            }
             .navigationBarTitleDisplayMode(.inline)
             .toolbar { toolbarContent }
             .onAppear {
                 model.fontContext = fontContext
+                model.fonts = fonts
                 if entry?.isEmptyContent == true { focus = .title }
             }
             .sensoryFeedback(.impact(weight: .light), trigger: entry?.rating)
@@ -153,14 +194,14 @@ struct EntryEditorContent: View {
                 .padding(.top, 8)
 
             TextEditor(text: $model.text, selection: $model.selection)
-                .font(Self.bodyFont(serif: usesSerifBody))
+                .font(fonts.body)
                 .focused($focus, equals: .body)
                 .scrollContentBackground(.hidden)
                 .padding(.horizontal, 11)
                 .overlay(alignment: .topLeading) {
                     if model.text.characters.isEmpty {
                         Text("Start writing…")
-                            .font(Self.bodyFont(serif: usesSerifBody))
+                            .font(fonts.body)
                             .foregroundStyle(.tertiary)
                             .padding(.horizontal, 16)
                             .padding(.top, 8)
@@ -307,11 +348,11 @@ struct EntryEditorContent: View {
                 .contentShape(.rect)
         }
         .buttonStyle(.plain)
-        .foregroundStyle(RichTextFormatting.isActive(style, in: model.text, selection: model.selection, context: fontContext) ? AnyShapeStyle(.tint) : AnyShapeStyle(.primary))
+        .foregroundStyle(RichTextFormatting.isActive(style, in: model.text, selection: model.selection, context: fontContext, fonts: fonts) ? AnyShapeStyle(.tint) : AnyShapeStyle(.primary))
     }
 
     private func toggle(_ style: RichTextStyle) {
-        RichTextFormatting.toggle(style, in: &model.text, selection: &model.selection, context: fontContext, baseFont: Self.bodyFont(serif: usesSerifBody))
+        RichTextFormatting.toggle(style, in: &model.text, selection: &model.selection, context: fontContext, fonts: fonts)
     }
 
     // MARK: Chips
@@ -408,22 +449,4 @@ struct EntryEditorContent: View {
     }
     .environment(PreviewSupport.model)
     .preferredColorScheme(.dark)
-}
-
-/// Slides the action grid up from below the screen, as one block, once the keyboard has gone.
-/// With Reduce Motion on it only fades in.
-private struct SlideUpAfterKeyboard: ViewModifier {
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    @State private var isRaised = false
-
-    func body(content: Content) -> some View {
-        content
-            .offset(y: isRaised || reduceMotion ? 0 : 220)
-            .opacity(isRaised ? 1 : 0)
-            .onAppear {
-                // Wait for the keyboard's own dismissal (about 0.25 s) before moving.
-                let animation: Animation = reduceMotion ? .easeOut(duration: 0.2) : .spring(duration: 0.45, bounce: 0.25)
-                withAnimation(animation.delay(0.25)) { isRaised = true }
-            }
-    }
 }

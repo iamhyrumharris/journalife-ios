@@ -8,6 +8,7 @@ struct SettingsSheet: View {
     @AppStorage(AppSettings.theme) private var theme = AppTheme.system
     @AppStorage(AppSettings.accent) private var accent = AccentChoice.blue
     @AppStorage(AppSettings.serifBody) private var serifBody = false
+    @AppStorage(AppSettings.textSize) private var textSize = EntryTextSize.large
     @AppStorage(AppSettings.timelineThumbnails) private var timelineThumbnails = false
     @AppStorage(AppSettings.weekStart) private var weekStart = WeekStart.system
 
@@ -27,6 +28,9 @@ struct SettingsSheet: View {
                         }
                     }
                     .pickerStyle(.navigationLink)
+                    Picker("Text Size", selection: $textSize) {
+                        ForEach(EntryTextSize.allCases) { Text($0.label).tag($0) }
+                    }
                     Toggle("Serif Font for Entries", isOn: $serifBody)
                     Toggle("Photos in Timeline", isOn: $timelineThumbnails)
                 }

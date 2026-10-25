@@ -40,7 +40,7 @@ public enum RichTextFormatting {
         in text: inout AttributedString,
         selection: inout AttributedTextSelection,
         context: Font.Context,
-        baseFont: Font = .body
+        fonts: EntryFonts = .standard
     ) {
         let current = selection.typingAttributes(in: text)
         let currentFont = current[FontKey.self]
@@ -49,13 +49,13 @@ public enum RichTextFormatting {
         case .bold:
             let turnOn = !(resolved?.isBold ?? false)
             text.transformAttributes(in: &selection) { container in
-                guard RichTextBridge.headingLevel(container[HeadingLevelAttribute.self], font: container[FontKey.self]) == nil else { return }
-                container[FontKey.self] = (container[FontKey.self] ?? baseFont).bold(turnOn)
+                guard RichTextBridge.headingLevel(container[HeadingLevelAttribute.self], font: container[FontKey.self], fonts: fonts) == nil else { return }
+                container[FontKey.self] = (container[FontKey.self] ?? fonts.body).bold(turnOn)
             }
         case .italic:
             let turnOn = !(resolved?.isItalic ?? false)
             text.transformAttributes(in: &selection) { container in
-                container[FontKey.self] = (container[FontKey.self] ?? baseFont).italic(turnOn)
+                container[FontKey.self] = (container[FontKey.self] ?? fonts.body).italic(turnOn)
             }
         case .underline:
             let turnOn = current[UnderlineKey.self] == nil
@@ -70,10 +70,10 @@ public enum RichTextFormatting {
         case .heading:
             // DECISION: headings apply to the selected text (or what you type next) rather
             // than snapping to whole paragraphs; that matches how the system format menu works.
-            let turnOn = RichTextBridge.headingLevel(current[HeadingLevelAttribute.self], font: currentFont) == nil
+            let turnOn = RichTextBridge.headingLevel(current[HeadingLevelAttribute.self], font: currentFont, fonts: fonts) == nil
             text.transformAttributes(in: &selection) { container in
                 container[HeadingLevelAttribute.self] = turnOn ? 1 : nil
-                container[FontKey.self] = turnOn ? RichTextBridge.headingFont : nil
+                container[FontKey.self] = turnOn ? fonts.heading : nil
             }
         }
     }
@@ -83,11 +83,12 @@ public enum RichTextFormatting {
         _ style: RichTextStyle,
         in text: AttributedString,
         selection: AttributedTextSelection,
-        context: Font.Context
+        context: Font.Context,
+        fonts: EntryFonts = .standard
     ) -> Bool {
         let current = selection.typingAttributes(in: text)
         let resolved = current[FontKey.self]?.resolve(in: context)
-        let heading = RichTextBridge.headingLevel(current[HeadingLevelAttribute.self], font: current[FontKey.self])
+        let heading = RichTextBridge.headingLevel(current[HeadingLevelAttribute.self], font: current[FontKey.self], fonts: fonts)
         switch style {
         case .bold: return heading == nil && (resolved?.isBold ?? false)
         case .italic: return resolved?.isItalic ?? false

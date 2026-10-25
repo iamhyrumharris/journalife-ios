@@ -6,6 +6,7 @@ enum AppSettings {
     static let theme = "appearance.theme"
     static let accent = "appearance.accent"
     static let serifBody = "appearance.serifBody"
+    static let textSize = "appearance.textSize"
     static let timelineThumbnails = "timeline.showThumbnails"
     static let weekStart = "calendar.weekStart"
     static let lockEnabled = "security.lockEnabled"

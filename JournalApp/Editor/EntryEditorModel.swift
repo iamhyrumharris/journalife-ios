@@ -28,7 +28,7 @@ final class EntryEditorModel {
     var photoLocationOffer: PhotoLocationOffer?
 
     @ObservationIgnored var fontContext: Font.Context?
-    @ObservationIgnored var baseFont: Font = .body
+    @ObservationIgnored var fonts: EntryFonts = .standard
     @ObservationIgnored private var isLoading = false
     @ObservationIgnored private var isDirty = false
     @ObservationIgnored private var isClosing = false
@@ -43,10 +43,10 @@ final class EntryEditorModel {
         let longitude: Double
     }
 
-    init(entryID: UUID, app: AppModel, baseFont: Font = .body) {
+    init(entryID: UUID, app: AppModel, fonts: EntryFonts = .standard) {
         self.routeEntryID = entryID
         self.app = app
-        self.baseFont = baseFont
+        self.fonts = fonts
         if let entry = app.stores.entries.entry(id: entryID), entry.deletedAt == nil {
             load(entry)
         }
@@ -59,7 +59,7 @@ final class EntryEditorModel {
         defer { isLoading = false }
         self.entry = entry
         title = entry.title
-        text = RichTextBridge.attributedString(from: entry.richText, baseFont: baseFont)
+        text = RichTextBridge.attributedString(from: entry.richText, fonts: fonts)
         selection = AttributedTextSelection()
         isDirty = false
     }
@@ -84,7 +84,7 @@ final class EntryEditorModel {
         isDirty = false
         stores.entries.setTitle(entry, title)
         if let fontContext {
-            stores.entries.setBody(entry, richText: RichTextBridge.richText(from: text, context: fontContext))
+            stores.entries.setBody(entry, richText: RichTextBridge.richText(from: text, context: fontContext, fonts: fonts))
         } else {
             // Without a font context bold and italic can't be read; keep the words safe at least.
             stores.entries.setBody(entry, richText: RichText(plain: String(text.characters)))

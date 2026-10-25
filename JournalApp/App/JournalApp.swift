@@ -40,6 +40,7 @@ struct AppRootView: View {
     @AppStorage(AppSettings.theme) private var theme = AppTheme.system
     @AppStorage(AppSettings.accent) private var accent = AccentChoice.blue
     @AppStorage(AppSettings.serifBody) private var serifBody = false
+    @AppStorage(AppSettings.textSize) private var textSize = EntryTextSize.large
     @AppStorage(AppSettings.timelineThumbnails) private var timelineThumbnails = false
 
     var body: some View {
@@ -61,6 +62,7 @@ struct AppRootView: View {
             .environment(\.storageLocation, app.stores.location)
             .environment(\.showsRowThumbnails, timelineThumbnails)
             .environment(\.usesSerifBody, serifBody)
+            .environment(\.entryTextSize, textSize)
             .sheet(isPresented: $app.isShowingSettings) {
                 SettingsSheet()
                     .tint(accent.color)
