@@ -34,8 +34,10 @@ struct DataSettingsSection: View {
             } label: {
                 Label("Export Archive", systemImage: "square.and.arrow.up")
             }
+            .disabled(isWorking)
             // Presentations live on one row, not the Section: a List applies Section modifiers
             // to every row, so several rows tried to present at once and Settings closed instead.
+            // They come after .disabled so the alert's OK button stays enabled.
             .task { await refreshStats() }
             .fileImporter(isPresented: $isImporting, allowedContentTypes: [.journalArchive, .zip]) { result in
                 switch result {
@@ -56,6 +58,7 @@ struct DataSettingsSection: View {
             } label: {
                 Label("Import Archive", systemImage: "square.and.arrow.down")
             }
+            .disabled(isWorking)
             if isWorking {
                 HStack {
                     if let progress {
@@ -77,18 +80,19 @@ struct DataSettingsSection: View {
             } label: {
                 Label("Generate Sample Data (1,000 entries)", systemImage: "wand.and.stars")
             }
+            .disabled(isWorking)
             Button(role: .destructive) {
                 Task { await deleteSampleData() }
             } label: {
                 Label("Delete Sample Data", systemImage: "trash")
             }
+            .disabled(isWorking)
             #endif
         } header: {
             Text("Data")
         } footer: {
             Text("An archive holds every entry, tag, photo and video in one file. Importing merges by entry, so importing the same archive twice never makes duplicates.")
         }
-        .disabled(isWorking)
     }
 
     private func refreshStats() async {
