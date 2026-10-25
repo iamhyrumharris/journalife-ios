@@ -232,15 +232,15 @@ struct EntryEditorContent: View {
         }
         ToolbarItemGroup(placement: .keyboard) {
             if focus == .body {
-                ForEach(RichTextStyle.allCases) { style in
-                    Button {
-                        RichTextFormatting.toggle(style, in: &model.text, selection: &model.selection, context: fontContext, baseFont: Self.bodyFont(serif: usesSerifBody))
-                    } label: {
-                        Label { Text(style.label) } icon: { Image(systemName: style.symbolName) }
-                    }
-                    .tint(RichTextFormatting.isActive(style, in: model.text, selection: model.selection, context: fontContext) ? .accentColor : .primary)
+                // Bold, italic and underline stay one tap away; the rest live in one menu
+                // so the toolbar fits on the narrowest iPhone.
+                ForEach([RichTextStyle.bold, .italic, .underline]) { style in
+                    styleButton(style)
                 }
                 Menu {
+                    styleButton(.strikethrough)
+                    styleButton(.heading)
+                    Divider()
                     Button { RichTextFormatting.insertListItem(.bullet, in: &model.text, selection: &model.selection) } label: {
                         Label("Bulleted List", systemImage: "list.bullet")
                     }
@@ -248,7 +248,7 @@ struct EntryEditorContent: View {
                         Label("Numbered List", systemImage: "list.number")
                     }
                 } label: {
-                    Label("Lists", systemImage: "list.bullet")
+                    Label("More Formatting", systemImage: "textformat")
                 }
             }
             Spacer()
@@ -261,6 +261,15 @@ struct EntryEditorContent: View {
             }
             Button { focus = nil } label: { Label("Done", systemImage: "keyboard.chevron.compact.down") }
         }
+    }
+
+    private func styleButton(_ style: RichTextStyle) -> some View {
+        Button {
+            RichTextFormatting.toggle(style, in: &model.text, selection: &model.selection, context: fontContext, baseFont: Self.bodyFont(serif: usesSerifBody))
+        } label: {
+            Label { Text(style.label) } icon: { Image(systemName: style.symbolName) }
+        }
+        .tint(RichTextFormatting.isActive(style, in: model.text, selection: model.selection, context: fontContext) ? .accentColor : .primary)
     }
 
     // MARK: Chips
