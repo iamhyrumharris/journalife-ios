@@ -8,7 +8,6 @@ struct CalendarScreen: View {
     @Environment(\.zoomNamespace) private var zoom
     @AppStorage(AppSettings.weekStart) private var weekStart = WeekStart.system
     @State private var model = CalendarModel()
-    @State private var pendingNewEntryDay: DayKey?
     @State private var isShowingJumpToDate = false
     @State private var jumpDate = Date.now
     @State private var scrollTarget: String?
@@ -71,16 +70,6 @@ struct CalendarScreen: View {
             if isVisible { refresh() } else { isStale = true }
         }
         .onChange(of: weekStart) { refresh() }
-        .confirmationDialog(
-            "New entry",
-            isPresented: Binding(get: { pendingNewEntryDay != nil }, set: { if !$0 { pendingNewEntryDay = nil } }),
-            titleVisibility: .visible,
-            presenting: pendingNewEntryDay
-        ) { day in
-            Button("Write on \(day.startDate().formatted(date: .long, time: .omitted))") {
-                app.createEntry(on: day)
-            }
-        }
         .sheet(isPresented: $isShowingJumpToDate) { jumpToDateSheet }
     }
 
@@ -138,7 +127,8 @@ struct CalendarScreen: View {
     private func open(_ day: DayKey, summary: DaySummary?) {
         switch summary?.entryIDs.count ?? 0 {
         case 0:
-            pendingNewEntryDay = day
+            // An empty day opens straight into a new entry; backing out of it unedited discards it.
+            app.createEntry(on: day)
         case 1:
             app.router.push(.entry(summary!.entryIDs[0], zoomSource: day.id))
         default:
