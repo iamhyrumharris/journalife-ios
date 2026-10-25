@@ -123,7 +123,8 @@ struct EntryEditorContent: View {
                     EditorActionGrid(perform: perform)
                         .padding(.horizontal)
                         .padding(.bottom, 8)
-                        .transition(.move(edge: .bottom).combined(with: .opacity))
+                        // Fade only: the keyboard already moves the bar, so sliding too made it jump.
+                        .transition(.opacity)
                 } else {
                     keyboardBar
                 }

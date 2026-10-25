@@ -46,21 +46,31 @@ enum EditorAction: String, CaseIterable, Identifiable {
 struct EditorActionGrid: View {
     var perform: (EditorAction) -> Void
 
-    private let columns = Array(repeating: GridItem(.flexible(), spacing: 8), count: 3)
-
     var body: some View {
-        LazyVGrid(columns: columns, spacing: 8) {
-            Menu {
-                Button { perform(.photo) } label: { Label("Photo Library", systemImage: "photo.on.rectangle") }
-                Button { perform(.camera) } label: { Label("Camera", systemImage: "camera") }
-            } label: {
-                tile(.photo)
+        // A plain Grid lays out every tile at once. The lazy grid this replaces placed tiles
+        // as they appeared, so while the keyboard went down the rows slid past each other.
+        Grid(horizontalSpacing: 8, verticalSpacing: 8) {
+            GridRow {
+                Menu {
+                    Button { perform(.photo) } label: { Label("Photo Library", systemImage: "photo.on.rectangle") }
+                    Button { perform(.camera) } label: { Label("Camera", systemImage: "camera") }
+                } label: {
+                    tile(.photo)
+                }
+                actionButton(.tags)
+                actionButton(.rating)
             }
-            ForEach([EditorAction.tags, .rating, .audio, .file, .location]) { action in
-                Button { perform(action) } label: { tile(action) }
+            GridRow {
+                actionButton(.audio)
+                actionButton(.file)
+                actionButton(.location)
             }
         }
         .buttonStyle(.plain)
+    }
+
+    private func actionButton(_ action: EditorAction) -> some View {
+        Button { perform(action) } label: { tile(action) }
     }
 
     private func tile(_ action: EditorAction) -> some View {
