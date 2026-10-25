@@ -45,19 +45,17 @@ final class CalendarModel {
         )
     }
 
-    /// Adds older months when the top of the calendar comes into view, so you can
-    /// keep scrolling into the past without limit.
-    func loadOlderMonths(stores: JournalStores, weekStart: WeekStart, count: Int = 24) {
-        guard let first = months.first?.firstDay,
-              let older = calendar.date(byAdding: .month, value: -count, to: first.startDate()) else { return }
-        extraMonthsBack = DayKey(date: older)
-        refresh(stores: stores, weekStart: weekStart)
-    }
-
     /// Makes sure the calendar reaches back to a date (for Jump to Date).
     func ensureIncludes(_ day: DayKey, stores: JournalStores, weekStart: WeekStart) {
         if let current = months.first?.firstDay, day >= current { return }
         extraMonthsBack = day
+        refresh(stores: stores, weekStart: weekStart)
+    }
+
+    /// Adds ten more years above the oldest month (the "Show Earlier Months" button).
+    func loadEarlierMonths(stores: JournalStores, weekStart: WeekStart) {
+        guard let first = months.first else { return }
+        extraMonthsBack = DayKey(year: first.year - Self.yearsBack, month: first.month, day: 1)
         refresh(stores: stores, weekStart: weekStart)
     }
 
@@ -80,11 +78,14 @@ final class CalendarModel {
         return Array(symbols[start...] + symbols[..<start])
     }
 
-    /// Every month from the earliest entry (at least a year back) through the current month.
+    /// How far back the calendar reaches with no older entries, and how much each "Show Earlier Months" adds.
+    static let yearsBack = 10
+
+    /// Every month from the earliest entry (at least ten years back) through the current month.
     static func months(from earliest: DayKey?, calendar: Calendar, now: Date = .now) -> [CalendarMonth] {
         let today = DayKey(date: now)
-        let yearAgo = DayKey(date: calendar.date(byAdding: .month, value: -11, to: now) ?? now)
-        let start = min(earliest ?? yearAgo, yearAgo)
+        let defaultStart = DayKey(year: today.year - yearsBack, month: 1, day: 1)
+        let start = min(earliest ?? defaultStart, defaultStart)
 
         var result: [CalendarMonth] = []
         var year = start.year

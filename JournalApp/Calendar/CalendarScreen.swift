@@ -21,14 +21,16 @@ struct CalendarScreen: View {
         ScrollViewReader { proxy in
             ScrollView {
                 LazyVStack(spacing: 20) {
+                    // DECISION: a button instead of loading automatically at the top. Auto-loading
+                    // in a bottom-anchored lazy stack kept re-triggering and hung the app.
+                    Button("Show Earlier Months") {
+                        model.loadEarlierMonths(stores: app.stores, weekStart: weekStart)
+                    }
+                    .buttonStyle(.bordered)
+                    .padding(.top, 8)
                     ForEach(model.months) { month in
                         monthView(month)
                             .id(month.id)
-                            .onAppear {
-                                if month.id == model.months.first?.id {
-                                    model.loadOlderMonths(stores: app.stores, weekStart: weekStart)
-                                }
-                            }
                     }
                 }
                 .padding(.horizontal, 2)
