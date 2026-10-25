@@ -40,11 +40,14 @@ struct EntryListRow: View {
         .listRowBackground(JournalColors.background)
         .alignmentGuide(.listRowSeparatorLeading) { _ in EntryRow.dateColumnWidth + 12 }
         .swipeActions(edge: .trailing) {
-            Button(role: .destructive) {
+            // Not role: .destructive: that tells the list the row is going away right now,
+            // which dismisses the row before the confirmation dialog can show.
+            Button {
                 isConfirmingDelete = true
             } label: {
                 Label("Delete", systemImage: "trash")
             }
+            .tint(.red)
         }
         .swipeActions(edge: .leading) {
             Button {
