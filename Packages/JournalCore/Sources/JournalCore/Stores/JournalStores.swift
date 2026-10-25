@@ -54,6 +54,20 @@ public final class JournalStores {
         return JournalStores(container: container, location: location)
     }
 
+    /// How long deleted items are kept before they are removed for good.
+    public static let tombstoneLifetime: TimeInterval = 30 * 86_400
+
+    /// Permanently removes items deleted more than 30 days ago (and deleted sample data
+    /// right away), along with their media files and previews. Run at launch.
+    @discardableResult
+    public func purgeDeletedItems(now: Date = .now) async -> Int {
+        let removed = entries.purgeTombstones(olderThan: now.addingTimeInterval(-Self.tombstoneLifetime))
+        for reference in removed {
+            await media.removeFiles(for: reference)
+        }
+        return removed.count
+    }
+
     /// Call after work done in another context (archive import, sample data) so views refetch.
     public func reloadAfterBackgroundChanges() {
         changes.bump()

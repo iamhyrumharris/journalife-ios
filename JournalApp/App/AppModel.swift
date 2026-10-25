@@ -27,7 +27,10 @@ final class AppModel {
         let groupID = Bundle.main.object(forInfoDictionaryKey: "AppGroupIdentifier") as? String
         let stores = try JournalStores.live(appGroupIdentifier: groupID)
         stores.entries.discardEmptyEntries()
-        return AppModel(stores: stores)
+        let model = AppModel(stores: stores)
+        // Remove items deleted more than 30 days ago, and their files.
+        Task { await stores.purgeDeletedItems() }
+        return model
     }
 
     // MARK: Entries

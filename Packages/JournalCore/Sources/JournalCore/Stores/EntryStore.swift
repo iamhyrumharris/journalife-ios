@@ -251,24 +251,38 @@ public final class EntryStore {
         return copy
     }
 
-    /// Permanently removes entries and attachments whose tombstones are older than the cutoff.
-    /// Returns the attachments removed so their files can be deleted.
+    /// Permanently removes entries, attachments and tags whose tombstones are older than the cutoff.
+    /// Deleted sample data is removed whatever its age. Returns the attachments removed so
+    /// their files can be deleted (see `JournalStores.purgeDeletedItems`).
     ///
-    /// Not scheduled yet: the spec runs this only once sync exists (purge after 30 days).
+    // DECISION: the spec planned purging only once sync exists. Hyrum chose to start now
+    // (2026-10-25) so deleted media stops using storage. When sync arrives, purge only
+    // tombstones that have been synced.
     @discardableResult
     public func purgeTombstones(olderThan cutoff: Date) -> [MediaReference] {
-        let entryDescriptor = FetchDescriptor<Entry>(predicate: #Predicate { $0.deletedAt != nil })
-        let attachmentDescriptor = FetchDescriptor<Attachment>(predicate: #Predicate { $0.deletedAt != nil })
-        var removed: [MediaReference] = []
-        for attachment in fetch(attachmentDescriptor) where (attachment.deletedAt ?? .distantFuture) < cutoff {
-            removed.append(attachment.reference)
+        let sample = SampleDataGenerator.sourceName
+        func isExpired(_ deletedAt: Date?, source: String?) -> Bool {
+            guard let deletedAt else { return false }
+            return deletedAt < cutoff || source == sample
+        }
+        var removed: [UUID: MediaReference] = [:]
+        for attachment in fetch(FetchDescriptor<Attachment>(predicate: #Predicate { $0.deletedAt != nil }))
+        where isExpired(attachment.deletedAt, source: attachment.entry?.source) {
+            removed[attachment.id] = attachment.reference
             context.delete(attachment)
         }
-        for entry in fetch(entryDescriptor) where (entry.deletedAt ?? .distantFuture) < cutoff {
+        for entry in fetch(FetchDescriptor<Entry>(predicate: #Predicate { $0.deletedAt != nil }))
+        where isExpired(entry.deletedAt, source: entry.source) {
+            // Deleting the entry cascades to all its attachments, so their files go too.
+            for attachment in entry.attachments ?? [] { removed[attachment.id] = attachment.reference }
             context.delete(entry)
         }
+        let tags = (try? context.fetch(FetchDescriptor<Tag>(predicate: #Predicate { $0.deletedAt != nil }))) ?? []
+        for tag in tags where isExpired(tag.deletedAt, source: nil) {
+            context.delete(tag)
+        }
         save(context, changes)
-        return removed
+        return Array(removed.values)
     }
 
     private func fetch(_ descriptor: FetchDescriptor<Entry>) -> [Entry] {

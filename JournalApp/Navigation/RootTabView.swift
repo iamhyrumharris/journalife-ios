@@ -63,6 +63,8 @@ struct TabStack<Root: View>: View {
         switch route {
         case .entry(let id, let source):
             EntryEditorScreen(entryID: id)
+                // The entry page gets the full screen: no tab bar under it.
+                .toolbarVisibility(.hidden, for: .tabBar)
                 .zoomTransition(from: source, in: zoom)
         case .day(let day, let source):
             DayListScreen(day: day)

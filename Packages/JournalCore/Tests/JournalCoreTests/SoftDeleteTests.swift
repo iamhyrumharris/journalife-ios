@@ -79,3 +79,53 @@ struct SoftDeleteTests {
         #expect(entry.liveTags.isEmpty)
     }
 }
+
+@MainActor
+@Suite("Purge")
+struct PurgeTests {
+    @Test func purgeDeletedItemsRemovesOldEntriesAndFiles() async throws {
+        let stores = try makeStores()
+        let old = stores.entries.create()
+        stores.entries.setTitle(old, "old")
+        let photo = try await stores.media.importFile(at: try writeTestJPEG(), move: true)
+        stores.attachments.add(photo, to: old)
+        let kept = stores.entries.create()
+        stores.entries.setTitle(kept, "recent")
+        stores.entries.softDelete(old)
+        stores.entries.softDelete(kept)
+        old.deletedAt = .now.addingTimeInterval(-31 * 86_400)
+
+        let removed = await stores.purgeDeletedItems()
+        #expect(removed == 1)
+        #expect(stores.entries.entry(id: old.id) == nil)
+        #expect(stores.entries.entry(id: kept.id) != nil)
+        #expect(!FileManager.default.fileExists(atPath: stores.media.originalURL(for: photo.reference).path))
+        #expect(!stores.media.hasThumbnails(for: photo.id))
+    }
+
+    @Test func deletedSampleDataIsPurgedImmediately() async throws {
+        let stores = try makeStores()
+        let sample = stores.entries.create()
+        stores.entries.update(sample) {
+            $0.title = "sample"
+            $0.source = SampleDataGenerator.sourceName
+        }
+        let mine = stores.entries.create()
+        stores.entries.setTitle(mine, "mine")
+        stores.entries.softDelete(sample)
+        stores.entries.softDelete(mine)
+
+        await stores.purgeDeletedItems()
+        #expect(stores.entries.entry(id: sample.id) == nil)
+        #expect(stores.entries.entry(id: mine.id) != nil)
+    }
+
+    @Test func oldDeletedTagsArePurged() async throws {
+        let stores = try makeStores()
+        let tag = stores.tags.create(name: "Gone")
+        stores.tags.softDelete(tag)
+        tag.deletedAt = .now.addingTimeInterval(-31 * 86_400)
+        await stores.purgeDeletedItems()
+        #expect(stores.tags.tag(id: tag.id) == nil)
+    }
+}

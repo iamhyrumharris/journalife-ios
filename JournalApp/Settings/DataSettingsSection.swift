@@ -174,6 +174,9 @@ struct DataSettingsSection: View {
         let generator = SampleDataGenerator(modelContainer: app.stores.container)
         let count = (try? await generator.deleteSampleData()) ?? 0
         app.stores.reloadAfterBackgroundChanges()
+        // Sample data is removed for good right away, so its photos stop using storage.
+        await app.stores.purgeDeletedItems()
+        app.thumbnails.removeAll()
         resultMessage = String(AttributedString(localized: "Deleted ^[\(count) sample entry](inflect: true).").characters)
         await refreshStats()
     }

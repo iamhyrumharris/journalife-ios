@@ -87,7 +87,7 @@ public actor SampleDataGenerator {
         return options.entryCount
     }
 
-    /// Soft-deletes every generated sample entry.
+    /// Soft-deletes every generated sample entry. `JournalStores.purgeDeletedItems` then removes them for good.
     @discardableResult
     public func deleteSampleData() throws -> Int {
         let name = Self.sourceName
