@@ -24,6 +24,11 @@ struct CalendarScreen: View {
                     ForEach(model.months) { month in
                         monthView(month)
                             .id(month.id)
+                            .onAppear {
+                                if month.id == model.months.first?.id {
+                                    model.loadOlderMonths(stores: app.stores, weekStart: weekStart)
+                                }
+                            }
                     }
                 }
                 .padding(.horizontal, 2)

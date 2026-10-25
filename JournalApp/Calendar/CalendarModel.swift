@@ -45,6 +45,15 @@ final class CalendarModel {
         )
     }
 
+    /// Adds older months when the top of the calendar comes into view, so you can
+    /// keep scrolling into the past without limit.
+    func loadOlderMonths(stores: JournalStores, weekStart: WeekStart, count: Int = 24) {
+        guard let first = months.first?.firstDay,
+              let older = calendar.date(byAdding: .month, value: -count, to: first.startDate()) else { return }
+        extraMonthsBack = DayKey(date: older)
+        refresh(stores: stores, weekStart: weekStart)
+    }
+
     /// Makes sure the calendar reaches back to a date (for Jump to Date).
     func ensureIncludes(_ day: DayKey, stores: JournalStores, weekStart: WeekStart) {
         if let current = months.first?.firstDay, day >= current { return }
