@@ -21,7 +21,8 @@ struct EntryEditorScreen: View {
                 Color.clear
             }
         }
-        .background(JournalColors.background)
+        // Fill under the keyboard too, so its rounded top corners show the page color, not white.
+        .background { JournalColors.background.ignoresSafeArea() }
         .onAppear {
             if model == nil {
                 model = EntryEditorModel(entryID: entryID, app: app, baseFont: EntryEditorContent.bodyFont(serif: usesSerifBody))
