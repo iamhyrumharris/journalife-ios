@@ -53,7 +53,6 @@ struct SearchScreen: View {
                 Section {
                     ForEach(results) { row in
                         EntryListRow(row: row, highlightTerms: highlightTerms)
-                            .simultaneousGesture(TapGesture().onEnded { remember(query.text) })
                     }
                 } header: {
                     Text("^[\(results.count) result](inflect: true)")
@@ -75,6 +74,9 @@ struct SearchScreen: View {
             tags = app.stores.tags.allTags()
             isFieldFocused = true
         }
+        // Opening a result remembers the search. A tap gesture on the rows did this before,
+        // but it swallowed the NavigationLink tap, so results couldn't be opened.
+        .onDisappear { if !query.text.isEmpty && !results.isEmpty { remember(query.text) } }
         .task(id: query) { await runSearch() }
         .onChange(of: app.stores.changes.revision) { Task { await runSearch(debounce: false) } }
         .sheet(isPresented: $isShowingDateRange) {
