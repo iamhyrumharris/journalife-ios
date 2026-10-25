@@ -161,15 +161,16 @@ struct EntryEditorContent: View {
             }
             .onChange(of: focus == nil) { _, isUnfocused in
                 // DECISION: iOS raises the keyboard the moment a field is tapped, so the buttons can't
-                // truly leave first without delaying focus, which would break tap-to-place-cursor.
-                // Instead they drop away fast (0.15 s), well ahead of the keyboard's ~0.35 s rise,
-                // and come back up only after the keyboard has gone (0.25 s).
+                // leave before it without delaying focus. They vanish instantly instead, and come
+                // back up only after the keyboard has gone (0.25 s).
                 if isUnfocused {
                     withAnimation((reduceMotion ? Animation.easeOut(duration: 0.2) : .spring(duration: 0.45, bounce: 0.25)).delay(0.25)) {
                         isGridRaised = true
                     }
                 } else {
-                    withAnimation(.easeIn(duration: 0.15)) { isGridRaised = false }
+                    var instant = Transaction()
+                    instant.disablesAnimations = true
+                    withTransaction(instant) { isGridRaised = false }
                 }
             }
             .navigationBarTitleDisplayMode(.inline)
