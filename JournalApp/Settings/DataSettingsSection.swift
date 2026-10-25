@@ -34,6 +34,23 @@ struct DataSettingsSection: View {
             } label: {
                 Label("Export Archive", systemImage: "square.and.arrow.up")
             }
+            // Presentations live on one row, not the Section: a List applies Section modifiers
+            // to every row, so several rows tried to present at once and Settings closed instead.
+            .task { await refreshStats() }
+            .fileImporter(isPresented: $isImporting, allowedContentTypes: [.journalArchive, .zip]) { result in
+                switch result {
+                case .success(let url): Task { await importArchive(url) }
+                case .failure(let error): resultMessage = error.localizedDescription
+                }
+            }
+            .sheet(item: $exportedArchive) { archive in
+                ExportReadySheet(archive: archive)
+            }
+            .alert("Data", isPresented: Binding(get: { resultMessage != nil }, set: { if !$0 { resultMessage = nil } })) {
+                Button("OK", role: .cancel) {}
+            } message: {
+                Text(resultMessage ?? "")
+            }
             Button {
                 isImporting = true
             } label: {
@@ -72,21 +89,6 @@ struct DataSettingsSection: View {
             Text("An archive holds every entry, tag, photo and video in one file. Importing merges by entry, so importing the same archive twice never makes duplicates.")
         }
         .disabled(isWorking)
-        .task { await refreshStats() }
-        .fileImporter(isPresented: $isImporting, allowedContentTypes: [.journalArchive, .zip]) { result in
-            switch result {
-            case .success(let url): Task { await importArchive(url) }
-            case .failure(let error): resultMessage = error.localizedDescription
-            }
-        }
-        .sheet(item: $exportedArchive) { archive in
-            ExportReadySheet(archive: archive)
-        }
-        .alert("Data", isPresented: Binding(get: { resultMessage != nil }, set: { if !$0 { resultMessage = nil } })) {
-            Button("OK", role: .cancel) {}
-        } message: {
-            Text(resultMessage ?? "")
-        }
     }
 
     private func refreshStats() async {
@@ -106,9 +108,9 @@ struct DataSettingsSection: View {
         do {
             let service = ArchiveService(modelContainer: app.stores.container)
             let summary = try await service.export(to: url, location: app.stores.location, appVersion: Bundle.main.shortVersion)
-            var text = String(localized: "^[\(summary.entryCount) entry](inflect: true) and ^[\(summary.attachmentCount) file](inflect: true).")
+            var text = String(AttributedString(localized: "^[\(summary.entryCount) entry](inflect: true) and ^[\(summary.attachmentCount) file](inflect: true).").characters)
             if summary.missingFiles > 0 {
-                text += " " + String(localized: "^[\(summary.missingFiles) file](inflect: true) couldn't be found and were skipped.")
+                text += " " + String(AttributedString(localized: "^[\(summary.missingFiles) file](inflect: true) couldn't be found and were skipped.").characters)
             }
             exportedArchive = ExportedArchive(url: url, summary: text)
         } catch {
@@ -130,7 +132,7 @@ struct DataSettingsSection: View {
             let service = ArchiveService(modelContainer: app.stores.container)
             let summary = try await service.importArchive(from: local, location: app.stores.location)
             app.stores.reloadAfterBackgroundChanges()
-            resultMessage = String(localized: "Imported. ^[\(summary.entriesAdded) new entry](inflect: true), ^[\(summary.entriesUpdated) updated entry](inflect: true), \(summary.entriesUnchanged) already up to date.")
+            resultMessage = String(AttributedString(localized: "Imported. ^[\(summary.entriesAdded) new entry](inflect: true), ^[\(summary.entriesUpdated) updated entry](inflect: true), \(summary.entriesUnchanged) already up to date.").characters)
         } catch {
             resultMessage = String(localized: "Import failed: \(error.localizedDescription)")
         }
@@ -168,7 +170,7 @@ struct DataSettingsSection: View {
         let generator = SampleDataGenerator(modelContainer: app.stores.container)
         let count = (try? await generator.deleteSampleData()) ?? 0
         app.stores.reloadAfterBackgroundChanges()
-        resultMessage = String(localized: "Deleted ^[\(count) sample entry](inflect: true).")
+        resultMessage = String(AttributedString(localized: "Deleted ^[\(count) sample entry](inflect: true).").characters)
         await refreshStats()
     }
     #endif

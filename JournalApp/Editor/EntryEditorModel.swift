@@ -201,7 +201,7 @@ final class EntryEditorModel {
             }
         }
         if failures > 0 {
-            errorMessage = String(localized: "^[\(failures) item](inflect: true) couldn't be added.")
+            errorMessage = String(AttributedString(localized: "^[\(failures) item](inflect: true) couldn't be added.").characters)
         }
     }
 
