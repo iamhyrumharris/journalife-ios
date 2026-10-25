@@ -123,8 +123,8 @@ struct EntryEditorContent: View {
                     EditorActionGrid(perform: perform)
                         .padding(.horizontal)
                         .padding(.bottom, 8)
-                        // Fade only: the keyboard already moves the bar, so sliding too made it jump.
-                        .transition(.opacity)
+                        .modifier(SlideUpAfterKeyboard())
+                        .transition(.identity)
                 } else {
                     keyboardBar
                         // Leave at once: fading out, it drifted down over the grid as the keyboard closed.
@@ -408,4 +408,22 @@ struct EntryEditorContent: View {
     }
     .environment(PreviewSupport.model)
     .preferredColorScheme(.dark)
+}
+
+/// Slides the action grid up from below the screen, as one block, once the keyboard has gone.
+/// With Reduce Motion on it only fades in.
+private struct SlideUpAfterKeyboard: ViewModifier {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var isRaised = false
+
+    func body(content: Content) -> some View {
+        content
+            .offset(y: isRaised || reduceMotion ? 0 : 220)
+            .opacity(isRaised ? 1 : 0)
+            .onAppear {
+                // Wait for the keyboard's own dismissal (about 0.25 s) before moving.
+                let animation: Animation = reduceMotion ? .easeOut(duration: 0.2) : .spring(duration: 0.45, bounce: 0.25)
+                withAnimation(animation.delay(0.25)) { isRaised = true }
+            }
+    }
 }
