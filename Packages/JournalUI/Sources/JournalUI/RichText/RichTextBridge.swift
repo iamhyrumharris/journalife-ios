@@ -17,6 +17,12 @@ public enum RichTextBridge {
     /// The font used for headings.
     public static let headingFont: Font = .title2.bold()
 
+    /// The heading level of a run. The editor drops custom attributes such as
+    /// `HeadingLevelAttribute` from text typed after them, so the heading font also marks a heading.
+    static func headingLevel(_ level: Int?, font: Font?) -> Int? {
+        level ?? (font == headingFont ? 1 : nil)
+    }
+
     public static func attributedString(from rich: RichText, baseFont: Font = .body) -> AttributedString {
         var result = AttributedString()
         for run in rich.runs {
@@ -42,7 +48,7 @@ public enum RichTextBridge {
             let text = String(attributed[run.range].characters)
             let resolved = run[FontKey.self]?.resolve(in: context)
             let intent = run[IntentKey.self] ?? []
-            let heading = run[HeadingLevelAttribute.self]
+            let heading = headingLevel(run[HeadingLevelAttribute.self], font: run[FontKey.self])
             runs.append(RichText.Run(
                 text: text,
                 bold: heading == nil && ((resolved?.isBold ?? false) || intent.contains(.stronglyEmphasized)),

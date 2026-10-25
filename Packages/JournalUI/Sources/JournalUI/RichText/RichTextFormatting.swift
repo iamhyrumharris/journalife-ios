@@ -49,7 +49,7 @@ public enum RichTextFormatting {
         case .bold:
             let turnOn = !(resolved?.isBold ?? false)
             text.transformAttributes(in: &selection) { container in
-                guard container[HeadingLevelAttribute.self] == nil else { return }
+                guard RichTextBridge.headingLevel(container[HeadingLevelAttribute.self], font: container[FontKey.self]) == nil else { return }
                 container[FontKey.self] = (container[FontKey.self] ?? baseFont).bold(turnOn)
             }
         case .italic:
@@ -70,7 +70,7 @@ public enum RichTextFormatting {
         case .heading:
             // DECISION: headings apply to the selected text (or what you type next) rather
             // than snapping to whole paragraphs; that matches how the system format menu works.
-            let turnOn = current[HeadingLevelAttribute.self] == nil
+            let turnOn = RichTextBridge.headingLevel(current[HeadingLevelAttribute.self], font: currentFont) == nil
             text.transformAttributes(in: &selection) { container in
                 container[HeadingLevelAttribute.self] = turnOn ? 1 : nil
                 container[FontKey.self] = turnOn ? RichTextBridge.headingFont : nil
@@ -87,12 +87,13 @@ public enum RichTextFormatting {
     ) -> Bool {
         let current = selection.typingAttributes(in: text)
         let resolved = current[FontKey.self]?.resolve(in: context)
+        let heading = RichTextBridge.headingLevel(current[HeadingLevelAttribute.self], font: current[FontKey.self])
         switch style {
-        case .bold: return current[HeadingLevelAttribute.self] == nil && (resolved?.isBold ?? false)
+        case .bold: return heading == nil && (resolved?.isBold ?? false)
         case .italic: return resolved?.isItalic ?? false
         case .underline: return current[UnderlineKey.self] != nil
         case .strikethrough: return current[StrikethroughKey.self] != nil
-        case .heading: return current[HeadingLevelAttribute.self] != nil
+        case .heading: return heading != nil
         }
     }
 
