@@ -1,0 +1,57 @@
+import JournalCore
+import SwiftUI
+
+/// Marks heading runs in the editor's `AttributedString`.
+public enum HeadingLevelAttribute: AttributedStringKey {
+    public typealias Value = Int
+    public static let name = "journal.headingLevel"
+}
+
+typealias FontKey = AttributeScopes.SwiftUIAttributes.FontAttribute
+typealias UnderlineKey = AttributeScopes.SwiftUIAttributes.UnderlineStyleAttribute
+typealias StrikethroughKey = AttributeScopes.SwiftUIAttributes.StrikethroughStyleAttribute
+typealias IntentKey = AttributeScopes.FoundationAttributes.InlinePresentationIntentAttribute
+
+/// Converts between the stored `RichText` and the `AttributedString` the iOS 26 `TextEditor` edits.
+public enum RichTextBridge {
+    /// The font used for headings.
+    public static let headingFont: Font = .title2.bold()
+
+    public static func attributedString(from rich: RichText, baseFont: Font = .body) -> AttributedString {
+        var result = AttributedString()
+        for run in rich.runs {
+            var piece = AttributedString(run.text)
+            if let heading = run.heading {
+                piece[FontKey.self] = headingFont
+                piece[HeadingLevelAttribute.self] = heading
+            } else if run.bold || run.italic {
+                piece[FontKey.self] = baseFont.bold(run.bold).italic(run.italic)
+            }
+            if run.underline { piece[UnderlineKey.self] = .single }
+            if run.strikethrough { piece[StrikethroughKey.self] = .single }
+            result.append(piece)
+        }
+        return result
+    }
+
+    /// Reads styles back from the editor. `context` resolves fonts to find bold and italic,
+    /// whether they came from our toolbar or from the system text formatting menu.
+    public static func richText(from attributed: AttributedString, context: Font.Context) -> RichText {
+        var runs: [RichText.Run] = []
+        for run in attributed.runs {
+            let text = String(attributed[run.range].characters)
+            let resolved = run[FontKey.self]?.resolve(in: context)
+            let intent = run[IntentKey.self] ?? []
+            let heading = run[HeadingLevelAttribute.self]
+            runs.append(RichText.Run(
+                text: text,
+                bold: heading == nil && ((resolved?.isBold ?? false) || intent.contains(.stronglyEmphasized)),
+                italic: (resolved?.isItalic ?? false) || intent.contains(.emphasized),
+                underline: run[UnderlineKey.self] != nil,
+                strikethrough: run[StrikethroughKey.self] != nil || intent.contains(.strikethrough),
+                heading: heading
+            ))
+        }
+        return RichText(runs: runs)
+    }
+}
