@@ -127,6 +127,8 @@ struct EntryEditorContent: View {
                         .transition(.opacity)
                 } else {
                     keyboardBar
+                        // Leave at once: fading out, it drifted down over the grid as the keyboard closed.
+                        .transition(.identity)
                 }
             }
             .animation(.snappy, value: focus == nil)
@@ -286,7 +288,6 @@ struct EntryEditorContent: View {
         }
         .padding(.horizontal)
         .padding(.bottom, 6)
-        .transition(.opacity)
     }
 
     private func barIcon(_ title: LocalizedStringKey, systemImage: String) -> some View {
