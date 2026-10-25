@@ -60,7 +60,83 @@ struct EntryEditorContent: View {
 
     private var entry: Entry? { model.entry }
 
+    // The body is split into parts so the type checker finishes in reasonable time.
     var body: some View {
+        withPresentations
+            .alert("Coming in the next update", isPresented: Binding(get: { comingSoon != nil }, set: { if !$0 { comingSoon = nil } })) {
+                Button("OK", role: .cancel) {}
+            } message: {
+                if let comingSoon { Text(comingSoon) }
+            }
+            .alert("Permission needed", isPresented: Binding(get: { permissionMessage != nil }, set: { if !$0 { permissionMessage = nil } })) {
+                Button("Open Settings") { openAppSettings() }
+                Button("Cancel", role: .cancel) {}
+            } message: {
+                if let permissionMessage { Text(permissionMessage) }
+            }
+            .alert("Something went wrong", isPresented: Binding(get: { model.errorMessage != nil }, set: { if !$0 { model.errorMessage = nil } })) {
+                Button("OK", role: .cancel) {}
+            } message: {
+                Text(model.errorMessage ?? "")
+            }
+    }
+
+    private var withPresentations: some View {
+        withChrome
+            .photosPicker(isPresented: $isShowingPhotoPicker, selection: $pickerItems, matching: .any(of: [.images, .videos]), preferredItemEncoding: .current)
+            .onChange(of: pickerItems) { _, items in
+                guard !items.isEmpty else { return }
+                pickerItems = []
+                Task { await model.importPicked(items) }
+            }
+            .fullScreenCover(isPresented: $isShowingCamera) {
+                CameraPicker { data in Task { await model.importCameraPhoto(data) } }
+                    .ignoresSafeArea()
+            }
+            .fullScreenCover(item: $viewerStart) { start in
+                MediaViewer(items: model.media, startAt: start.id)
+            }
+            .sheet(item: $sheet) { sheet in sheetContent(sheet) }
+            .confirmationDialog("Delete this entry?", isPresented: $isConfirmingDelete, titleVisibility: .visible) {
+                Button("Delete Entry", role: .destructive) { model.delete() }
+            } message: {
+                Text("Its photos and videos are deleted too.")
+            }
+            .confirmationDialog(
+                "Use the photo's location?",
+                isPresented: Binding(get: { model.photoLocationOffer != nil }, set: { if !$0 { model.photoLocationOffer = nil } }),
+                titleVisibility: .visible,
+                presenting: model.photoLocationOffer
+            ) { offer in
+                Button("Use Photo Location") { Task { await model.usePhotoLocation(offer) } }
+                Button("Not Now", role: .cancel) {}
+            } message: { _ in
+                Text("This photo has a location. You can add it to the entry.")
+            }
+    }
+
+    private var withChrome: some View {
+        editorColumn
+            .safeAreaInset(edge: .bottom) {
+                if focus == nil {
+                    EditorActionGrid(perform: perform)
+                        .padding(.horizontal)
+                        .padding(.bottom, 8)
+                        .transition(.move(edge: .bottom).combined(with: .opacity))
+                }
+            }
+            .animation(.snappy, value: focus == nil)
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar { toolbarContent }
+            .onAppear {
+                model.fontContext = fontContext
+                if entry?.isEmptyContent == true { focus = .title }
+            }
+            .sensoryFeedback(.impact(weight: .light), trigger: entry?.rating)
+            .sensoryFeedback(.impact(weight: .light), trigger: entry?.liveTags.count)
+    }
+
+    private var editorColumn: some View {
         VStack(spacing: 0) {
             TextField("Title", text: $model.title)
                 .font(.title2.bold())
@@ -105,69 +181,6 @@ struct EntryEditorContent: View {
                 ProgressView("Adding media…")
                     .padding(.vertical, 6)
             }
-        }
-        .safeAreaInset(edge: .bottom) {
-            if focus == nil {
-                EditorActionGrid(perform: perform)
-                    .padding(.horizontal)
-                    .padding(.bottom, 8)
-                    .transition(.move(edge: .bottom).combined(with: .opacity))
-            }
-        }
-        .animation(.snappy, value: focus == nil)
-        .navigationBarTitleDisplayMode(.inline)
-        .toolbar { toolbarContent }
-        .onAppear {
-            model.fontContext = fontContext
-            if entry?.isEmptyContent == true { focus = .title }
-        }
-        .sensoryFeedback(.impact(weight: .light), trigger: entry?.rating)
-        .sensoryFeedback(.impact(weight: .light), trigger: entry?.liveTags.count)
-        .photosPicker(isPresented: $isShowingPhotoPicker, selection: $pickerItems, matching: .any(of: [.images, .videos]), preferredItemEncoding: .current)
-        .onChange(of: pickerItems) { _, items in
-            guard !items.isEmpty else { return }
-            pickerItems = []
-            Task { await model.importPicked(items) }
-        }
-        .fullScreenCover(isPresented: $isShowingCamera) {
-            CameraPicker { data in Task { await model.importCameraPhoto(data) } }
-                .ignoresSafeArea()
-        }
-        .fullScreenCover(item: $viewerStart) { start in
-            MediaViewer(items: model.media, startAt: start.id)
-        }
-        .sheet(item: $sheet) { sheet in sheetContent(sheet) }
-        .confirmationDialog("Delete this entry?", isPresented: $isConfirmingDelete, titleVisibility: .visible) {
-            Button("Delete Entry", role: .destructive) { model.delete() }
-        } message: {
-            Text("Its photos and videos are deleted too.")
-        }
-        .confirmationDialog(
-            "Use the photo's location?",
-            isPresented: Binding(get: { model.photoLocationOffer != nil }, set: { if !$0 { model.photoLocationOffer = nil } }),
-            titleVisibility: .visible,
-            presenting: model.photoLocationOffer
-        ) { offer in
-            Button("Use Photo Location") { Task { await model.usePhotoLocation(offer) } }
-            Button("Not Now", role: .cancel) {}
-        } message: { _ in
-            Text("This photo has a location. You can add it to the entry.")
-        }
-        .alert("Coming in the next update", isPresented: Binding(get: { comingSoon != nil }, set: { if !$0 { comingSoon = nil } })) {
-            Button("OK", role: .cancel) {}
-        } message: {
-            if let comingSoon { Text(comingSoon) }
-        }
-        .alert("Permission needed", isPresented: Binding(get: { permissionMessage != nil }, set: { if !$0 { permissionMessage = nil } })) {
-            Button("Open Settings") { openAppSettings() }
-            Button("Cancel", role: .cancel) {}
-        } message: {
-            if let permissionMessage { Text(permissionMessage) }
-        }
-        .alert("Something went wrong", isPresented: Binding(get: { model.errorMessage != nil }, set: { if !$0 { model.errorMessage = nil } })) {
-            Button("OK", role: .cancel) {}
-        } message: {
-            Text(model.errorMessage ?? "")
         }
     }
 

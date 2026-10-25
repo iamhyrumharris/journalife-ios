@@ -17,7 +17,7 @@ public struct EntryRow: View {
     }
 
     /// Width of the date column. Dividers are inset by this much so they line up with the text.
-    public static let dateColumnWidth: CGFloat = 52
+    public nonisolated static let dateColumnWidth: CGFloat = 52
 
     public var body: some View {
         HStack(alignment: .top, spacing: 12) {

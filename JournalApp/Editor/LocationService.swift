@@ -39,7 +39,8 @@ enum LocationService {
     }
 
     /// A short, human name for a coordinate ("Zion National Park", "Provo").
-    static func placeName(latitude: Double, longitude: Double) async -> String? {
+    /// Nonisolated so the non-Sendable request never leaves the context it was made in.
+    @concurrent nonisolated static func placeName(latitude: Double, longitude: Double) async -> String? {
         let location = CLLocation(latitude: latitude, longitude: longitude)
         guard let request = MKReverseGeocodingRequest(location: location),
               let item = try? await request.mapItems.first else { return nil }

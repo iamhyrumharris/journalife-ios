@@ -5,6 +5,8 @@ import ImageIO
 /// A decoded image that can cross actors. `CGImage` is immutable, so this is safe.
 public struct DecodedImage: @unchecked Sendable {
     public let cgImage: CGImage
+
+    public init(cgImage: CGImage) { self.cgImage = cgImage }
 }
 
 /// In-memory cache of decoded thumbnails, shared by every screen.

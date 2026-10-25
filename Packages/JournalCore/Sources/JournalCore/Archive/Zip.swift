@@ -86,9 +86,11 @@ private struct ByteReader {
 
 private func dosDateTime(_ date: Date) -> (time: UInt16, date: UInt16) {
     let parts = Calendar(identifier: .gregorian).dateComponents([.year, .month, .day, .hour, .minute, .second], from: date)
-    let year = max((parts.year ?? 1980) - 1980, 0)
-    let time = UInt16(((parts.hour ?? 0) << 11) | ((parts.minute ?? 0) << 5) | ((parts.second ?? 0) / 2))
-    let day = UInt16((year << 9) | ((parts.month ?? 1) << 5) | (parts.day ?? 1))
+    let year: Int = max((parts.year ?? 1980) - 1980, 0)
+    let hour: Int = parts.hour ?? 0, minute: Int = parts.minute ?? 0, second: Int = parts.second ?? 0
+    let month: Int = parts.month ?? 1, dayOfMonth: Int = parts.day ?? 1
+    let time = UInt16((hour << 11) | (minute << 5) | (second / 2))
+    let day = UInt16((year << 9) | (month << 5) | dayOfMonth)
     return (time, day)
 }
 
