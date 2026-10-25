@@ -202,11 +202,7 @@ struct EntryEditorContent: View {
             }
             .accessibilityHint(Text("Changes the entry's date and time"))
         }
-        ToolbarItemGroup(placement: .topBarTrailing) {
-            Button { model.go(.previous) } label: { Label("Previous Entry", systemImage: "chevron.up") }
-                .disabled(!model.canGo(.previous))
-            Button { model.go(.next) } label: { Label("Next Entry", systemImage: "chevron.down") }
-                .disabled(!model.canGo(.next))
+        ToolbarItem(placement: .topBarTrailing) {
             Menu {
                 Button { model.toggleFavorite() } label: {
                     Label(entry?.isFavorite == true ? "Remove from Favorites" : "Add to Favorites",
