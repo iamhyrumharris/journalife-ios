@@ -29,6 +29,9 @@ struct CalendarScreen: View {
                 .padding(.horizontal, 2)
                 .padding(.bottom, 12)
             }
+            // A safe-area bar keeps the weekday row pinned under the top bar and insets
+            // the months below it, so the first row of dates is never covered.
+            .safeAreaBar(edge: .top) { weekdayHeader }
             .defaultScrollAnchor(.bottom)
             // Keeps your place when months above load in while scrolling into the past.
             .defaultScrollAnchor(.bottom, for: .sizeChanges)
@@ -38,7 +41,6 @@ struct CalendarScreen: View {
                 scrollTarget = nil
             }
         }
-        .safeAreaInset(edge: .top, spacing: 0) { weekdayHeader }
         .background(JournalColors.background)
         .tabRootToolbar(title: "Calendar") {
             Button {
@@ -92,7 +94,6 @@ struct CalendarScreen: View {
         }
         .padding(.horizontal, 2)
         .padding(.vertical, 6)
-        .background(JournalColors.background.opacity(0.92))
     }
 
     private func monthView(_ month: CalendarMonth) -> some View {

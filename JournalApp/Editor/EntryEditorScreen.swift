@@ -127,6 +127,8 @@ struct EntryEditorContent: View {
             }
             .animation(.snappy, value: focus == nil)
             .navigationBarTitleDisplayMode(.inline)
+            // The editor gets the full screen, so the keyboard toolbar never sits over the tab bar.
+            .toolbar(.hidden, for: .tabBar)
             .toolbar { toolbarContent }
             .onAppear {
                 model.fontContext = fontContext
