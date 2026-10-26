@@ -85,7 +85,7 @@ struct CalendarScreen: View {
             ForEach(Array(zip(model.weekdaySymbols, model.fullWeekdaySymbols).enumerated()), id: \.offset) { _, symbol in
                 Text(symbol.0)
                     .font(.caption.weight(.semibold))
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(.primary)
                     .frame(maxWidth: .infinity)
                     .accessibilityLabel(symbol.1)
             }

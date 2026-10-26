@@ -65,9 +65,9 @@ final class CalendarModel {
         return .tinted
     }
 
-    /// Weekday letters in display order, following the week start.
+    /// Short weekday names (Sun, Mon…) in display order, following the week start.
     var weekdaySymbols: [String] {
-        let symbols = calendar.veryShortStandaloneWeekdaySymbols
+        let symbols = calendar.shortStandaloneWeekdaySymbols
         let start = calendar.firstWeekday - 1
         return Array(symbols[start...] + symbols[..<start])
     }

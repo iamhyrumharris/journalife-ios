@@ -5,7 +5,7 @@ public enum JournalColors {
     /// True black in dark mode, system grouped background in light mode.
     public static let background = Color("JournalBackground", bundle: .module)
     /// Headers that content scrolls under: the page color, mostly solid with a hint of what's beneath.
-    public static let header = background.opacity(0.85)
+    public static let header = background.opacity(0.95)
     /// Rows and cards (#1C1C1E in dark mode).
     public static let card = Color("JournalCard", bundle: .module)
     /// Calendar days without entries.

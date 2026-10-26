@@ -51,7 +51,7 @@ extension View {
 }
 
 extension View {
-    /// A mostly solid header (85% page color) with a hairline under it, instead of the see-through
+    /// A mostly solid header (95% page color) with a hairline under it, instead of the see-through
     /// blur, so scrolled rows don't show behind the title and buttons. (The calendar draws its
     /// own under the weekday row.)
     func solidNavigationHeader() -> some View {
