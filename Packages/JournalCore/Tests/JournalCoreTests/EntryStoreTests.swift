@@ -101,6 +101,7 @@ struct EntryStoreTests {
         let stores = try makeStores()
         let day = DayKey.today
         let first = stores.entries.create(date: day.startDate().addingTimeInterval(3_600))
+        stores.entries.setTitle(first, "Morning")
         let second = stores.entries.create(date: day.startDate().addingTimeInterval(7_200))
         let photo = try await stores.media.importFile(at: try writeTestJPEG(), move: true)
         stores.attachments.add(photo, to: second)
@@ -109,6 +110,17 @@ struct EntryStoreTests {
         #expect(summary.count == 2)
         #expect(summary.entryIDs == [first.id, second.id])
         #expect(summary.cover?.id == photo.id)
+    }
+
+    @Test func daySummariesSkipEmptyEntries() throws {
+        let stores = try makeStores()
+        let day = DayKey.today
+        stores.entries.create(date: day.startDate().addingTimeInterval(3_600))
+        #expect(stores.entries.daySummaries()[day] == nil)
+
+        let rated = stores.entries.create(date: day.startDate().addingTimeInterval(7_200))
+        stores.entries.setRating(rated, 3)
+        #expect(stores.entries.daySummaries()[day]?.entryIDs == [rated.id])
     }
 
     @Test func chosenCoverWins() async throws {

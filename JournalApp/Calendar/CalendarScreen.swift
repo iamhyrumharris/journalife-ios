@@ -128,7 +128,7 @@ struct CalendarScreen: View {
         switch summary?.entryIDs.count ?? 0 {
         case 0:
             // An empty day opens straight into a new entry; backing out of it unedited discards it.
-            app.createEntry(on: day, zoomSource: day.id)
+            app.createEntry(on: day, zoomSource: day.id, focusTitle: false)
         case 1:
             app.router.push(.entry(summary!.entryIDs[0], zoomSource: day.id))
         default:

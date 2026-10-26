@@ -15,6 +15,8 @@ final class AppModel {
 
     /// Open editors, so their pending text can be saved before the app backgrounds.
     @ObservationIgnored private var editors: [UUID: WeakEditor] = [:]
+    /// New entries that should open without focusing the title (see `createEntry`).
+    @ObservationIgnored private(set) var unfocusedNewEntries: Set<UUID> = []
 
     init(stores: JournalStores) {
         self.stores = stores
@@ -37,9 +39,13 @@ final class AppModel {
 
     /// Creates an entry dated now (or on a given day) and opens it on the current tab,
     /// zooming out of `zoomSource` (a calendar cell) when given.
-    func createEntry(on day: DayKey? = nil, zoomSource: String? = nil) {
+    // DECISION: the + button and the new-entry link focus the title so you can write at once.
+    // An empty calendar day passes `focusTitle: false`: the page opens with the action buttons
+    // showing, since you may want to add photos first.
+    func createEntry(on day: DayKey? = nil, zoomSource: String? = nil, focusTitle: Bool = true) {
         let date = day.map { $0.date(atTimeOf: .now) } ?? .now
         let entry = stores.entries.create(date: date)
+        if !focusTitle { unfocusedNewEntries.insert(entry.id) }
         router.push(.entry(entry.id, zoomSource: zoomSource))
     }
 

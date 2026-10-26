@@ -86,11 +86,15 @@ public extension Entry {
         return visual.first
     }
 
-    /// True when the entry has nothing worth keeping: no title, body or attachments.
+    /// True when the entry has nothing worth keeping: no title, body, attachments, tags,
+    /// rating or location.
     var isEmptyContent: Bool {
         title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
             && bodyPlain.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
             && liveAttachments.isEmpty
+            && liveTags.isEmpty
+            && rating == nil
+            && !hasLocation
     }
 
     /// Title for list rows: the title, or the first line of the body when there is none.

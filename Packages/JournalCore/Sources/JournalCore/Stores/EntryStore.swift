@@ -84,7 +84,9 @@ public final class EntryStore {
     // an automatic pick, since choosing a cover is a deliberate act.
     public func daySummaries() -> [DayKey: DaySummary] {
         var byDay: [DayKey: [Entry]] = [:]
-        for entry in allEntries(newestFirst: false) {
+        // A just-created entry that's still empty doesn't count yet, so backing out of it
+        // never flashes the day as having an entry before it's discarded.
+        for entry in allEntries(newestFirst: false) where !(entry.isEmptyContent && entry.source == nil) {
             byDay[entry.dayKey, default: []].append(entry)
         }
         var result: [DayKey: DaySummary] = [:]

@@ -178,7 +178,7 @@ struct EntryEditorContent: View {
             .onAppear {
                 model.fontContext = fontContext
                 model.fonts = fonts
-                if entry?.isEmptyContent == true { focus = .title }
+                if entry?.isEmptyContent == true && !app.unfocusedNewEntries.contains(model.routeEntryID) { focus = .title }
             }
             .sensoryFeedback(.impact(weight: .light), trigger: entry?.rating)
             .sensoryFeedback(.impact(weight: .light), trigger: entry?.liveTags.count)
