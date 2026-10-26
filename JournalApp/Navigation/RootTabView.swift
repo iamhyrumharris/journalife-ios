@@ -167,9 +167,20 @@ private struct AppearanceEvents: UIViewControllerRepresentable {
             willAppear()
         }
 
+        // On a device the did-appear callback doesn't always reach this embedded controller, so
+        // hook in from every point that does run; watchBackGestures skips recognizers it has.
+        override func viewIsAppearing(_ animated: Bool) {
+            super.viewIsAppearing(animated)
+            watchBackGestures()
+        }
+
         override func viewDidAppear(_ animated: Bool) {
             super.viewDidAppear(animated)
-            tabBar = tabBarController?.tabBar
+            watchBackGestures()
+        }
+
+        override func viewDidLayoutSubviews() {
+            super.viewDidLayoutSubviews()
             watchBackGestures()
         }
 
@@ -181,6 +192,7 @@ private struct AppearanceEvents: UIViewControllerRepresentable {
         /// Adds this controller as an extra target of the back-swipe recognizers: the navigation
         /// controller's edge and content pops, and the pans on the page (the zoom dismiss).
         private func watchBackGestures() {
+            if let bar = tabBarController?.tabBar { tabBar = bar }
             var candidates: [UIGestureRecognizer] = []
             if let nav = navigationController {
                 candidates += [nav.interactivePopGestureRecognizer, nav.interactiveContentPopGestureRecognizer].compactMap { $0 }
@@ -221,16 +233,26 @@ private struct AppearanceEvents: UIViewControllerRepresentable {
                 let finishing = pan.state == .ended
                     && (swipeProgress(pan) > 0.5 || max(velocity.x, velocity.y) > 300)
                 UIView.animate(withDuration: 0.25) { tabBar?.alpha = finishing ? 1 : 0 }
-                // If the page is still showing once the gesture settles, the swipe was cancelled.
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) { [weak self] in
-                    guard let self else { return }
-                    if self.view.window != nil, self.navigationController?.topViewController === self.parent {
-                        self.willAppear()
-                    }
-                    tabBar?.alpha = 1
-                }
+                settle(finishing: finishing)
             default:
                 break
+            }
+        }
+
+        /// After the finger lifts, the back animation keeps running (over a second on a device).
+        /// Wait until it's actually over: if the page is still on top then, the swipe was cancelled.
+        private func settle(finishing: Bool, waited: TimeInterval = 0) {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) { [weak self] in
+                guard let self else { return }
+                let nav = self.navigationController
+                let stillRunning = nav?.transitionCoordinator != nil || self.parent?.transitionCoordinator != nil
+                let isOnTop = self.view.window != nil && nav?.topViewController === self.parent
+                if (stillRunning || (finishing && isOnTop)) && waited < 2 {
+                    self.settle(finishing: finishing, waited: waited + 0.1)
+                    return
+                }
+                if isOnTop { self.willAppear() }
+                self.tabBar?.alpha = 1
             }
         }
 
@@ -253,3 +275,4 @@ private struct AppearanceEvents: UIViewControllerRepresentable {
         }
     }
 }
+
