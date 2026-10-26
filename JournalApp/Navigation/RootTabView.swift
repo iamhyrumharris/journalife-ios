@@ -140,8 +140,9 @@ extension View {
         .preferredColorScheme(.dark)
 }
 
-/// UIKit's will-appear and will-disappear callbacks, which SwiftUI doesn't offer. They fire at the
-/// start of a push, pop or interactive swipe, and a cancelled swipe brings back a will-appear.
+/// UIKit's will-appear and will-disappear callbacks, which SwiftUI doesn't offer, plus the start
+/// of a back swipe. On a real device an interactive back swipe (edge or zoom dismiss) only reports
+/// will-disappear when it finishes, so the swipe gesture itself is watched as well.
 private struct AppearanceEvents: UIViewControllerRepresentable {
     var willAppear: () -> Void
     var willDisappear: () -> Void
@@ -156,15 +157,99 @@ private struct AppearanceEvents: UIViewControllerRepresentable {
     final class Controller: UIViewController {
         var willAppear: () -> Void = {}
         var willDisappear: () -> Void = {}
+        private var watched: [UIGestureRecognizer] = []
+        private weak var tabBar: UITabBar?
+        private weak var activePan: UIPanGestureRecognizer?
+        private var displayLink: CADisplayLink?
 
         override func viewWillAppear(_ animated: Bool) {
             super.viewWillAppear(animated)
             willAppear()
         }
 
+        override func viewDidAppear(_ animated: Bool) {
+            super.viewDidAppear(animated)
+            tabBar = tabBarController?.tabBar
+            watchBackGestures()
+        }
+
         override func viewWillDisappear(_ animated: Bool) {
             super.viewWillDisappear(animated)
             willDisappear()
+        }
+
+        /// Adds this controller as an extra target of the back-swipe recognizers: the navigation
+        /// controller's edge and content pops, and the pans on the page (the zoom dismiss).
+        private func watchBackGestures() {
+            var candidates: [UIGestureRecognizer] = []
+            if let nav = navigationController {
+                candidates += [nav.interactivePopGestureRecognizer, nav.interactiveContentPopGestureRecognizer].compactMap { $0 }
+            }
+            var view = parent?.view
+            while let current = view, current !== navigationController?.view.superview {
+                candidates += (current.gestureRecognizers ?? []).filter { $0 is UIPanGestureRecognizer }
+                view = current.superview
+            }
+            for recognizer in candidates where !watched.contains(where: { $0 === recognizer }) {
+                recognizer.addTarget(self, action: #selector(backGestureChanged(_:)))
+                watched.append(recognizer)
+            }
+        }
+
+        @objc private func backGestureChanged(_ recognizer: UIGestureRecognizer) {
+            guard view.window != nil, let pan = recognizer as? UIPanGestureRecognizer else { return }
+            // The tab bar fades in with the swipe, like the system's hidesBottomBarWhenPushed.
+            // Read from the saved reference: once the page starts leaving, tabBarController is nil.
+            let tabBar = self.tabBar
+            switch pan.state {
+            case .began:
+                willDisappear()
+                // SwiftUI unhides the tab bar at full opacity on its own schedule, so follow the
+                // swipe every frame rather than only when the finger moves.
+                activePan = pan
+                tabBar?.alpha = 0
+                let link = CADisplayLink(target: self, selector: #selector(followSwipe))
+                link.add(to: .main, forMode: .common)
+                displayLink = link
+            case .changed:
+                break
+            case .ended, .cancelled, .failed:
+                displayLink?.invalidate()
+                displayLink = nil
+                activePan = nil
+                let velocity = pan.velocity(in: view)
+                let finishing = pan.state == .ended
+                    && (swipeProgress(pan) > 0.5 || max(velocity.x, velocity.y) > 300)
+                UIView.animate(withDuration: 0.25) { tabBar?.alpha = finishing ? 1 : 0 }
+                // If the page is still showing once the gesture settles, the swipe was cancelled.
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) { [weak self] in
+                    guard let self else { return }
+                    if self.view.window != nil, self.navigationController?.topViewController === self.parent {
+                        self.willAppear()
+                    }
+                    tabBar?.alpha = 1
+                }
+            default:
+                break
+            }
+        }
+
+        @objc private func followSwipe() {
+            guard let pan = activePan else { return }
+            tabBar?.alpha = swipeProgress(pan)
+        }
+
+        /// How far the back swipe has gone, 0 to 1: sideways for the edge swipe, down for the zoom.
+        private func swipeProgress(_ pan: UIPanGestureRecognizer) -> CGFloat {
+            let translation = pan.translation(in: view)
+            let bounds = view.window?.bounds ?? view.bounds
+            let progress = max(translation.x / bounds.width, translation.y / bounds.height)
+            return min(max(progress, 0), 1)
+        }
+
+        isolated deinit {
+            displayLink?.invalidate()
+            for recognizer in watched { recognizer.removeTarget(self, action: nil) }
         }
     }
 }
