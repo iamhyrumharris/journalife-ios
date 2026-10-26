@@ -74,6 +74,12 @@ struct EntryEditorContent: View {
     // The body is split into parts so the type checker finishes in reasonable time.
     var body: some View {
         withPresentations
+            // While the page animates away (back swipe or back button), ignore taps so one
+            // landing on the text can't bring up the keyboard on the way out.
+            .allowsHitTesting(!app.router.isLeavingEntry)
+            .onChange(of: app.router.isLeavingEntry) { _, isLeaving in
+                if isLeaving { focus = nil }
+            }
             .alert("Coming in the next update", isPresented: Binding(get: { comingSoon != nil }, set: { if !$0 { comingSoon = nil } })) {
                 Button("OK", role: .cancel) {}
             } message: {
