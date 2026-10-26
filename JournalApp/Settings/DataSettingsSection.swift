@@ -5,7 +5,8 @@ import UniformTypeIdentifiers
 extension UTType {
     /// Declared in Info.plist (UTExportedTypeDeclarations), conforming to public.zip-archive.
     static var journalArchive: UTType {
-        UTType(filenameExtension: ArchiveFormat.fileExtension, conformingTo: .zip) ?? .zip
+        UTType("\(Bundle.main.bundleIdentifier ?? "com.iamhyrumharris.journalife").archive")
+            ?? UTType(filenameExtension: ArchiveFormat.fileExtension, conformingTo: .zip) ?? .zip
     }
 }
 
@@ -39,7 +40,7 @@ struct DataSettingsSection: View {
             // to every row, so several rows tried to present at once and Settings closed instead.
             // They come after .disabled so the alert's OK button stays enabled.
             .task { await refreshStats() }
-            .fileImporter(isPresented: $isImporting, allowedContentTypes: [.journalArchive, .zip]) { result in
+            .fileImporter(isPresented: $isImporting, allowedContentTypes: [.journalArchive, .zip, .data]) { result in
                 switch result {
                 case .success(let url): Task { await importArchive(url) }
                 case .failure(let error): resultMessage = error.localizedDescription
@@ -122,6 +123,19 @@ struct DataSettingsSection: View {
         }
     }
 
+    /// Copies through a file coordinator, which downloads a file that's only in iCloud Drive
+    /// (a plain copy fails on those) and waits for any writer to finish.
+    private static func copyCoordinated(from source: URL, to destination: URL) async throws {
+        try await Task.detached {
+            var coordinatorError: NSError?
+            var copyError: Error?
+            NSFileCoordinator().coordinate(readingItemAt: source, options: [], error: &coordinatorError) { readable in
+                do { try FileManager.default.copyItem(at: readable, to: destination) } catch { copyError = error }
+            }
+            if let error = coordinatorError ?? copyError { throw error }
+        }.value
+    }
+
     private func importArchive(_ url: URL) async {
         app.flushEditors()
         start("Importing…")
@@ -131,7 +145,7 @@ struct DataSettingsSection: View {
         do {
             // Copy first: reading a file in iCloud Drive while it changes would break the archive.
             let local = URL.temporaryDirectory.appending(path: "\(UUID().uuidString).\(ArchiveFormat.fileExtension)")
-            try FileManager.default.copyItem(at: url, to: local)
+            try await Self.copyCoordinated(from: url, to: local)
             defer { try? FileManager.default.removeItem(at: local) }
             let service = ArchiveService(modelContainer: app.stores.container)
             let summary = try await service.importArchive(from: local, location: app.stores.location)
