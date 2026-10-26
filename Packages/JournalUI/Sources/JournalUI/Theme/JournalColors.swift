@@ -4,8 +4,8 @@ import SwiftUI
 public enum JournalColors {
     /// True black in dark mode, system grouped background in light mode.
     public static let background = Color("JournalBackground", bundle: .module)
-    /// Headers that content scrolls under: the page color, mostly solid with a hint of what's beneath.
-    public static let header = background.opacity(0.95)
+    /// The page-color tint laid over the blur in `HeaderBackground`.
+    public static let headerTint = background.opacity(0.85)
     /// Rows and cards (#1C1C1E in dark mode).
     public static let card = Color("JournalCard", bundle: .module)
     /// Calendar days without entries.
@@ -65,5 +65,17 @@ public extension Color {
             green: Double((value >> 8) & 0xFF) / 255,
             blue: Double(value & 0xFF) / 255
         )
+    }
+}
+
+/// The background for headers that content scrolls under: a blur with the page color over it,
+/// so what's beneath shows only as soft color, never as readable text.
+public struct HeaderBackground: View {
+    public init() {}
+
+    public var body: some View {
+        Rectangle()
+            .fill(.regularMaterial)
+            .overlay(JournalColors.headerTint)
     }
 }

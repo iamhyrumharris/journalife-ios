@@ -28,7 +28,7 @@ struct TimelineScreen: View {
                         .textCase(nil)
                         // Pinned month labels match the header, so rows only faintly show through them.
                         .listRowInsets(EdgeInsets())
-                        .background(JournalColors.header)
+                        .background { HeaderBackground() }
                 }
             }
         }

@@ -38,7 +38,7 @@ struct CalendarScreen: View {
             // A safe-area bar keeps the weekday row pinned under the top bar and insets
             // the months below it, so the first row of dates is never covered.
             .safeAreaBar(edge: .top) { weekdayHeader }
-            // A solid header like a paper diary: no blur of the months showing through.
+            // Our own frosted header (HeaderBackground) instead of the default scroll edge effect.
             .scrollEdgeEffectHidden(true, for: .top)
             .defaultScrollAnchor(.bottom)
             // Keeps your place when months above load in while scrolling into the past.
@@ -84,7 +84,7 @@ struct CalendarScreen: View {
         HStack(spacing: 2) {
             ForEach(Array(zip(model.weekdaySymbols, model.fullWeekdaySymbols).enumerated()), id: \.offset) { _, symbol in
                 Text(symbol.0)
-                    .font(.caption.weight(.semibold))
+                    .font(.subheadline)
                     .foregroundStyle(.primary)
                     .frame(maxWidth: .infinity)
                     .accessibilityLabel(symbol.1)
@@ -92,8 +92,8 @@ struct CalendarScreen: View {
         }
         .padding(.horizontal, 2)
         .padding(.vertical, 6)
-        // Fills up behind the title and buttons too, so the header reads as one solid block.
-        .background { JournalColors.header.ignoresSafeArea(edges: .top) }
+        // Fills up behind the title and buttons too, so the header reads as one block.
+        .background { HeaderBackground().ignoresSafeArea(edges: .top) }
         .overlay(alignment: .bottom) { Divider() }
     }
 
