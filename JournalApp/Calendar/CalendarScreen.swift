@@ -93,7 +93,7 @@ struct CalendarScreen: View {
         .padding(.horizontal, 2)
         .padding(.vertical, 6)
         // Fills up behind the title and buttons too, so the header reads as one solid block.
-        .background { JournalColors.background.ignoresSafeArea(edges: .top) }
+        .background { JournalColors.header.ignoresSafeArea(edges: .top) }
         .overlay(alignment: .bottom) { Divider() }
     }
 

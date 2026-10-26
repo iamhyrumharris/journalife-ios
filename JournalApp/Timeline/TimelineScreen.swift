@@ -26,9 +26,9 @@ struct TimelineScreen: View {
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 6)
                         .textCase(nil)
-                        // Pinned month labels are solid, so rows don't show through them.
+                        // Pinned month labels match the header, so rows only faintly show through them.
                         .listRowInsets(EdgeInsets())
-                        .background(JournalColors.background)
+                        .background(JournalColors.header)
                 }
             }
         }

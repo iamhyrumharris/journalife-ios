@@ -51,7 +51,7 @@ extension View {
 }
 
 extension View {
-    /// A solid header in the page color with a hairline under it, instead of the see-through
+    /// A mostly solid header (85% page color) with a hairline under it, instead of the see-through
     /// blur, so scrolled rows don't show behind the title and buttons. (The calendar draws its
     /// own under the weekday row.)
     func solidNavigationHeader() -> some View {
@@ -59,7 +59,7 @@ extension View {
             .safeAreaBar(edge: .top) {
                 Color.clear
                     .frame(height: 0)
-                    .background { JournalColors.background.ignoresSafeArea(edges: .top) }
+                    .background { JournalColors.header.ignoresSafeArea(edges: .top) }
                     .overlay(alignment: .bottom) { Divider() }
             }
     }
