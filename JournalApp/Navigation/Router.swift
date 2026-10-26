@@ -17,6 +17,9 @@ enum AppRoute: Hashable {
 @Observable
 final class Router {
     var selectedTab: AppTab = .calendar
+    /// True from the moment an entry page starts going away (a back swipe or the back button)
+    /// until it's back on screen or gone, so the tab bar can return with it instead of after.
+    var isLeavingEntry = false
     private(set) var paths: [AppTab: [AppRoute]] = [:]
 
     /// Called with the routes that were popped, so the app can save and clean up empty entries.

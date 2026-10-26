@@ -1,3 +1,4 @@
+import UIKit
 import JournalUI
 import SwiftUI
 
@@ -55,6 +56,8 @@ struct TabStack<Root: View>: View {
         if case .entry = app.router.path(for: tab).wrappedValue.last { true } else { false }
     }
 
+    private var hidesTabBar: Bool { isEntryOnTop && !app.router.isLeavingEntry }
+
     var body: some View {
         NavigationStack(path: app.router.path(for: tab)) {
             root()
@@ -66,7 +69,7 @@ struct TabStack<Root: View>: View {
         }
         // Driven by the path rather than by the entry page itself: a per-page setting is applied
         // only after the swipe-back animation settles, and fast swipes sometimes lost it entirely.
-        .toolbarVisibility(isEntryOnTop ? .hidden : .visible, for: .tabBar)
+        .toolbarVisibility(hidesTabBar ? .hidden : .visible, for: .tabBar)
         .onGeometryChange(for: CGFloat.self) { $0.safeAreaInsets.bottom } action: { inset in
             if !isEntryOnTop { tabBarInset = max(tabBarInset, inset) }
         }
@@ -78,6 +81,14 @@ struct TabStack<Root: View>: View {
         switch route {
         case .entry(let id, let source):
             EntryEditorScreen(entryID: id)
+                // The path only changes once the back animation has finished, which made the tab bar
+                // lag behind. These fire as the page starts leaving, and again if a swipe is cancelled.
+                .background {
+                    AppearanceEvents(
+                        willAppear: { app.router.isLeavingEntry = false },
+                        willDisappear: { app.router.isLeavingEntry = true }
+                    )
+                }
                 .zoomTransition(from: source, in: zoom)
         case .day(let day, let source):
             DayListScreen(day: day)
@@ -127,4 +138,33 @@ extension View {
     RootTabView()
         .environment(PreviewSupport.model)
         .preferredColorScheme(.dark)
+}
+
+/// UIKit's will-appear and will-disappear callbacks, which SwiftUI doesn't offer. They fire at the
+/// start of a push, pop or interactive swipe, and a cancelled swipe brings back a will-appear.
+private struct AppearanceEvents: UIViewControllerRepresentable {
+    var willAppear: () -> Void
+    var willDisappear: () -> Void
+
+    func makeUIViewController(context: Context) -> Controller { Controller() }
+
+    func updateUIViewController(_ controller: Controller, context: Context) {
+        controller.willAppear = willAppear
+        controller.willDisappear = willDisappear
+    }
+
+    final class Controller: UIViewController {
+        var willAppear: () -> Void = {}
+        var willDisappear: () -> Void = {}
+
+        override func viewWillAppear(_ animated: Bool) {
+            super.viewWillAppear(animated)
+            willAppear()
+        }
+
+        override func viewWillDisappear(_ animated: Bool) {
+            super.viewWillDisappear(animated)
+            willDisappear()
+        }
+    }
 }
