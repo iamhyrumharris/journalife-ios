@@ -35,11 +35,12 @@ final class AppModel {
 
     // MARK: Entries
 
-    /// Creates an entry dated now (or on a given day) and opens it on the current tab.
-    func createEntry(on day: DayKey? = nil) {
+    /// Creates an entry dated now (or on a given day) and opens it on the current tab,
+    /// zooming out of `zoomSource` (a calendar cell) when given.
+    func createEntry(on day: DayKey? = nil, zoomSource: String? = nil) {
         let date = day.map { $0.date(atTimeOf: .now) } ?? .now
         let entry = stores.entries.create(date: date)
-        router.push(.entry(entry.id))
+        router.push(.entry(entry.id, zoomSource: zoomSource))
     }
 
     func handle(url: URL) {

@@ -2,7 +2,8 @@ import JournalCore
 import JournalUI
 import SwiftUI
 
-/// A square day cell. Photo days fill edge to edge with the cover; today is accent blue.
+/// A square day cell. Photo days fill edge to edge with the cover; today has an accent ring
+/// around its number, so it never looks like a day that only has text.
 struct CalendarDayCell: View {
     let day: DayKey
     let content: CalendarCellContent
@@ -15,13 +16,19 @@ struct CalendarDayCell: View {
             .aspectRatio(1, contentMode: .fit)
             .background { background }
             .overlay { border }
-            .overlay(alignment: .topLeading) {
+            .overlay {
                 Text(verbatim: "\(day.day)")
                     .font(.footnote.weight(.semibold))
                     .foregroundStyle(numberColor)
                     .shadow(color: hasPhoto ? .black.opacity(0.7) : .clear, radius: 2, y: 1)
-                    .padding(.leading, 5)
-                    .padding(.top, 3)
+                    .frame(width: 28, height: 28)
+                    .overlay {
+                        if isToday {
+                            Circle()
+                                .strokeBorder(.tint, lineWidth: 2.5)
+                                .shadow(color: hasPhoto ? .black.opacity(0.5) : .clear, radius: 2)
+                        }
+                    }
             }
             .overlay(alignment: .topTrailing) {
                 if count > 1 {
@@ -50,21 +57,19 @@ struct CalendarDayCell: View {
         case .photo(let cover):
             ThumbnailImage(id: cover.id, size: .small)
         case .tinted:
-            Rectangle().fill(isToday ? AnyShapeStyle(.tint) : AnyShapeStyle(.tint.opacity(0.3)))
+            Rectangle().fill(.tint.opacity(0.3))
         case .empty:
-            Rectangle().fill(isToday ? AnyShapeStyle(.tint) : AnyShapeStyle(JournalColors.emptyDay))
+            Rectangle().fill(JournalColors.emptyDay)
         }
     }
 
     @ViewBuilder
     private var border: some View {
-        if isToday && hasPhoto {
-            Rectangle().strokeBorder(.tint, lineWidth: 2)
-        }
+        EmptyView()
     }
 
     private var numberColor: Color {
-        if hasPhoto || isToday { return .white }
+        if hasPhoto { return .white }
         return count > 0 ? .primary : .secondary
     }
 

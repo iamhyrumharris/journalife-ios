@@ -46,14 +46,29 @@ struct TabStack<Root: View>: View {
 
     @Environment(AppModel.self) private var app
     @Namespace private var zoom
+    /// The bottom safe area with the tab bar showing. Screens under the tab bar keep this inset
+    /// even while it's hidden, so it coming back never shifts their content.
+    @State private var tabBarInset: CGFloat = 0
+
+    /// The entry page gets the full screen, with no tab bar under it.
+    private var isEntryOnTop: Bool {
+        if case .entry = app.router.path(for: tab).wrappedValue.last { true } else { false }
+    }
 
     var body: some View {
         NavigationStack(path: app.router.path(for: tab)) {
             root()
+                .steadyBottomInset(tabBarInset)
                 .background(JournalColors.background)
                 .navigationDestination(for: AppRoute.self) { route in
                     destination(for: route)
                 }
+        }
+        // Driven by the path rather than by the entry page itself: a per-page setting is applied
+        // only after the swipe-back animation settles, and fast swipes sometimes lost it entirely.
+        .toolbarVisibility(isEntryOnTop ? .hidden : .visible, for: .tabBar)
+        .onGeometryChange(for: CGFloat.self) { $0.safeAreaInsets.bottom } action: { inset in
+            if !isEntryOnTop { tabBarInset = max(tabBarInset, inset) }
         }
         .environment(\.zoomNamespace, zoom)
     }
@@ -63,11 +78,10 @@ struct TabStack<Root: View>: View {
         switch route {
         case .entry(let id, let source):
             EntryEditorScreen(entryID: id)
-                // The entry page gets the full screen: no tab bar under it.
-                .toolbarVisibility(.hidden, for: .tabBar)
                 .zoomTransition(from: source, in: zoom)
         case .day(let day, let source):
             DayListScreen(day: day)
+                .steadyBottomInset(tabBarInset)
                 .zoomTransition(from: source, in: zoom)
         }
     }
@@ -79,6 +93,16 @@ extension EnvironmentValues {
 }
 
 extension View {
+    /// Replaces the bottom container safe area with a fixed inset (once it's known).
+    @ViewBuilder
+    func steadyBottomInset(_ inset: CGFloat) -> some View {
+        if inset > 0 {
+            safeAreaPadding(.bottom, inset).ignoresSafeArea(.container, edges: .bottom)
+        } else {
+            self
+        }
+    }
+
     @ViewBuilder
     func zoomTransition(from source: String?, in namespace: Namespace.ID) -> some View {
         if let source {
