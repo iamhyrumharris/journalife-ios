@@ -18,6 +18,7 @@ struct DayListScreen: View {
         .listStyle(.plain)
         .scrollContentBackground(.hidden)
         .background(JournalColors.background)
+        .solidNavigationHeader()
         .navigationTitle(day.startDate().formatted(date: .complete, time: .omitted))
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {

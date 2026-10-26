@@ -1,3 +1,4 @@
+import JournalUI
 import SwiftUI
 
 /// The shared top bar on every tab root: + on the left, the tab title in the middle,
@@ -46,5 +47,20 @@ extension View {
 
     func tabRootToolbar<MenuContent: View>(title: LocalizedStringResource, @ViewBuilder menu: @escaping () -> MenuContent) -> some View {
         modifier(TabRootToolbar(title: title, menu: menu))
+    }
+}
+
+extension View {
+    /// A solid header in the page color with a hairline under it, instead of the see-through
+    /// blur, so scrolled rows don't show behind the title and buttons. (The calendar draws its
+    /// own under the weekday row.)
+    func solidNavigationHeader() -> some View {
+        scrollEdgeEffectHidden(true, for: .top)
+            .safeAreaBar(edge: .top) {
+                Color.clear
+                    .frame(height: 0)
+                    .background { JournalColors.background.ignoresSafeArea(edges: .top) }
+                    .overlay(alignment: .bottom) { Divider() }
+            }
     }
 }

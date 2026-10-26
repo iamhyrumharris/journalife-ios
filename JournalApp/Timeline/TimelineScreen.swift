@@ -24,7 +24,11 @@ struct TimelineScreen: View {
                         .font(.headline)
                         .foregroundStyle(.primary)
                         .frame(maxWidth: .infinity)
+                        .padding(.vertical, 6)
                         .textCase(nil)
+                        // Pinned month labels are solid, so rows don't show through them.
+                        .listRowInsets(EdgeInsets())
+                        .background(JournalColors.background)
                 }
             }
         }
@@ -44,6 +48,7 @@ struct TimelineScreen: View {
                 }
             }
         }
+        .solidNavigationHeader()
         .tabRootToolbar(title: "Timeline") {
             Picker(selection: $newestFirst) {
                 Text("Newest First").tag(true)

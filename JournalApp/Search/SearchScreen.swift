@@ -69,6 +69,7 @@ struct SearchScreen: View {
         }
         .searchable(text: $query.text, isPresented: $isFieldFocused, prompt: "Titles and text")
         .onSubmit(of: .search) { remember(query.text) }
+        .solidNavigationHeader()
         .tabRootToolbar(title: "Search")
         .onAppear {
             tags = app.stores.tags.allTags()
