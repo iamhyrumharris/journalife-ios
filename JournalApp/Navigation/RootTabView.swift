@@ -140,9 +140,9 @@ extension View {
         .preferredColorScheme(.dark)
 }
 
-/// UIKit's will-appear and will-disappear callbacks, which SwiftUI doesn't offer, plus the start
-/// of a back swipe. On a real device an interactive back swipe (edge or zoom dismiss) only reports
-/// will-disappear when it finishes, so the swipe gesture itself is watched as well.
+/// UIKit's will-appear and will-disappear callbacks, which SwiftUI doesn't offer, and the tab bar's
+/// fade during the entry page's transitions. A back swipe reports will-disappear as soon as the
+/// page starts to leave, and the transition coordinator says how far it has gone and how it ended.
 private struct AppearanceEvents: UIViewControllerRepresentable {
     var willAppear: () -> Void
     var willDisappear: () -> Void
@@ -157,20 +157,19 @@ private struct AppearanceEvents: UIViewControllerRepresentable {
     final class Controller: UIViewController {
         var willAppear: () -> Void = {}
         var willDisappear: () -> Void = {}
-        private var watched: [UIGestureRecognizer] = []
         private weak var tabBar: UITabBar?
         private weak var nav: UINavigationController?
         /// The controller this page was pushed as, the direct child of the navigation controller.
         private weak var page: UIViewController?
-        private weak var activePan: UIPanGestureRecognizer?
         private weak var followedTransition: UIViewControllerTransitionCoordinator?
         private var displayLink: CADisplayLink?
         private var isWaitingForHide = false
 
-        // DECISION: one rule decides the tab bar. While a transition runs, the bar follows its
-        // progress. When it ends (or a swipe ends without one starting), the bar is set from the
-        // truth: is this page still the top of the navigation stack? Never from swipe speed or
-        // timers; those guesses left the bar stuck over the entry after quick flicks.
+        // DECISION: one rule decides the tab bar. While a transition of this page runs, the bar
+        // follows its progress. When it ends, the bar is set from the truth: is this page still the
+        // top of the navigation stack? Swipe gestures aren't watched at all: a flick that starts no
+        // transition (say, while the page is still zooming open) changes nothing, and guesses from
+        // the gesture used to leave the bar stuck over the entry.
 
         override func viewWillAppear(_ animated: Bool) {
             super.viewWillAppear(animated)
@@ -179,31 +178,31 @@ private struct AppearanceEvents: UIViewControllerRepresentable {
         }
 
         // On a device the did-appear callback doesn't always reach this embedded controller, so
-        // hook in from every point that does run; watchBackGestures skips recognizers it has.
+        // look up the navigation controller and page from every point that does run.
         override func viewIsAppearing(_ animated: Bool) {
             super.viewIsAppearing(animated)
             remember()
-            watchBackGestures()
         }
 
         override func viewDidAppear(_ animated: Bool) {
             super.viewDidAppear(animated)
             remember()
-            watchBackGestures()
-            if activePan == nil && followedTransition == nil { applyTruth("didAppear") }
+            if followedTransition == nil { applyTruth("didAppear") }
         }
 
         override func viewDidLayoutSubviews() {
             super.viewDidLayoutSubviews()
             remember()
-            watchBackGestures()
         }
 
         override func viewWillDisappear(_ animated: Bool) {
             super.viewWillDisappear(animated)
-            willDisappear()
             followTransitionIfAny()
-            if followedTransition == nil && activePan == nil {
+            // Make the bar see-through before SwiftUI shows it, or it appears at full strength
+            // for a few frames before following the swipe.
+            if followedTransition != nil { tabBar?.alpha = 0 }
+            willDisappear()
+            if followedTransition == nil {
                 // Leaving without an animation (for example switching tabs): the bar shows normally.
                 stopDisplayLink()
                 tabBar?.alpha = 1
@@ -217,44 +216,6 @@ private struct AppearanceEvents: UIViewControllerRepresentable {
             while let current = candidate, let parent = current.parent {
                 if parent === nav { page = current; break }
                 candidate = parent
-            }
-        }
-
-        /// Adds this controller as an extra target of the back-swipe recognizers: the navigation
-        /// controller's edge and content pops, and the pans on the page (the zoom dismiss).
-        private func watchBackGestures() {
-            var candidates: [UIGestureRecognizer] = []
-            if let nav {
-                candidates += [nav.interactivePopGestureRecognizer, nav.interactiveContentPopGestureRecognizer].compactMap { $0 }
-            }
-            var view = parent?.view
-            while let current = view, current !== nav?.view.superview {
-                candidates += (current.gestureRecognizers ?? []).filter { $0 is UIPanGestureRecognizer }
-                view = current.superview
-            }
-            for recognizer in candidates where !watched.contains(where: { $0 === recognizer }) {
-                recognizer.addTarget(self, action: #selector(backGestureChanged(_:)))
-                watched.append(recognizer)
-            }
-        }
-
-        @objc private func backGestureChanged(_ recognizer: UIGestureRecognizer) {
-            guard let pan = recognizer as? UIPanGestureRecognizer else { return }
-            // The navigation controller's recognizers are shared by every page; only the top one acts.
-            guard isOnTop else { return }
-            switch pan.state {
-            case .began:
-                willDisappear()
-                activePan = pan
-                isWaitingForHide = false
-                tabBar?.alpha = 0
-                startDisplayLink()
-            case .ended, .cancelled, .failed:
-                activePan = nil
-                // The display link takes it from here: it follows a transition if one runs, or
-                // applies the truth on the next frame if none does.
-            default:
-                break
             }
         }
 
@@ -318,12 +279,11 @@ private struct AppearanceEvents: UIViewControllerRepresentable {
 
         @objc private func tick() {
             followTransitionIfAny()
-            if let coordinator = followedTransition {
-                // Leaving: the bar shows as much as the page has gone.
-                tabBar?.alpha = coordinator.isCancelled ? 0 : coordinator.percentComplete
-            } else if let pan = activePan {
-                // The finger is down but no transition has started yet.
-                tabBar?.alpha = swipeProgress(pan)
+            if let coordinator = followedTransition, let page {
+                // The bar shows as much as the page has gone: fading in as it leaves, out as it arrives.
+                let leaving = coordinator.viewController(forKey: .from) === page
+                let shown = leaving ? coordinator.percentComplete : 1 - coordinator.percentComplete
+                tabBar?.alpha = coordinator.isCancelled ? (leaving ? 0 : 1) : shown
             } else if isWaitingForHide {
                 guard let bar = tabBar else { return stopDisplayLink() }
                 if !isOnTop {
@@ -339,22 +299,13 @@ private struct AppearanceEvents: UIViewControllerRepresentable {
                     bar.alpha = 0
                 }
             } else {
-                // The swipe ended and no transition ran: nothing moved, so apply the truth.
-                applyTruth("swipe without transition")
+                stopDisplayLink()
             }
-        }
-
-        private func swipeProgress(_ pan: UIPanGestureRecognizer) -> CGFloat {
-            let translation = pan.translation(in: view)
-            let bounds = view.window?.bounds ?? view.bounds
-            let progress = max(translation.x / bounds.width, translation.y / bounds.height)
-            return min(max(progress, 0), 1)
         }
 
         isolated deinit {
             displayLink?.invalidate()
             if isWaitingForHide { tabBar?.alpha = 1 }
-            for recognizer in watched { recognizer.removeTarget(self, action: nil) }
         }
     }
 }
