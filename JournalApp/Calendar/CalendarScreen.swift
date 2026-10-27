@@ -50,17 +50,17 @@ struct CalendarScreen: View {
             }
         }
         .background(JournalColors.background)
-        // The ••• menu is in the shared top bar (RootTabView), which sends its choice here.
-        .onChange(of: app.router.calendarCommand) { _, command in
-            switch command {
-            case .jumpToToday:
+        .tabRootToolbar(title: "Calendar") {
+            Button {
                 scrollTarget = CalendarMonth(year: DayKey.today.year, month: DayKey.today.month, leadingBlanks: 0, dayCount: 0).id
-            case .pickDate:
-                isShowingJumpToDate = true
-            case nil:
-                return
+            } label: {
+                Label("Jump to Today", systemImage: "calendar.badge.clock")
             }
-            app.router.calendarCommand = nil
+            Button {
+                isShowingJumpToDate = true
+            } label: {
+                Label("Jump to Date…", systemImage: "calendar.badge.magnifyingglass")
+            }
         }
         .onAppear {
             isVisible = true

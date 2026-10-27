@@ -6,6 +6,7 @@ import SwiftUI
 struct TimelineScreen: View {
     @Environment(AppModel.self) private var app
     @AppStorage(AppSettings.timelineNewestFirst) private var newestFirst = true
+    @State private var tagFilter: UUID?
     @State private var sections: [MonthSection] = []
     @State private var tags: [JournalCore.Tag] = []
     @State private var isVisible = false
@@ -36,7 +37,7 @@ struct TimelineScreen: View {
         .background(JournalColors.background)
         .overlay {
             if sections.isEmpty && !isStale {
-                if app.router.timelineTagFilter != nil {
+                if tagFilter != nil {
                     ContentUnavailableView("No entries with this tag", systemImage: "tag")
                 } else {
                     ContentUnavailableView {
@@ -48,6 +49,24 @@ struct TimelineScreen: View {
             }
         }
         .solidNavigationHeader()
+        .tabRootToolbar(title: "Timeline") {
+            Picker(selection: $newestFirst) {
+                Text("Newest First").tag(true)
+                Text("Oldest First").tag(false)
+            } label: {
+                Label("Sort", systemImage: "arrow.up.arrow.down")
+            }
+            .pickerStyle(.menu)
+            Picker(selection: $tagFilter) {
+                Text("All Entries").tag(UUID?.none)
+                ForEach(tags) { tag in
+                    Label(tag.name, systemImage: tag.symbolName).tag(UUID?.some(tag.id))
+                }
+            } label: {
+                Label("Filter by Tag", systemImage: "line.3.horizontal.decrease")
+            }
+            .pickerStyle(.menu)
+        }
         .onAppear {
             isVisible = true
             if isStale { refresh() }
@@ -57,14 +76,14 @@ struct TimelineScreen: View {
             if isVisible { refresh() } else { isStale = true }
         }
         .onChange(of: newestFirst) { refresh() }
-        .onChange(of: app.router.timelineTagFilter) { refresh() }
+        .onChange(of: tagFilter) { refresh() }
     }
 
     private func refresh() {
         tags = app.stores.tags.allTags()
-        if let tagFilter = app.router.timelineTagFilter, !tags.contains(where: { $0.id == tagFilter }) { app.router.timelineTagFilter = nil }
+        if let tagFilter, !tags.contains(where: { $0.id == tagFilter }) { self.tagFilter = nil }
         var entries = app.stores.entries.allEntries(newestFirst: newestFirst)
-        if let tagFilter = app.router.timelineTagFilter { entries = entries.filter { $0.liveTags.contains { $0.id == tagFilter } } }
+        if let tagFilter { entries = entries.filter { $0.liveTags.contains { $0.id == tagFilter } } }
         sections = MonthSection.group(entries.map(EntryRowData.init))
         isStale = false
     }
