@@ -79,7 +79,10 @@ struct TabStack<Root: View>: View {
     @ViewBuilder
     private func destination(for route: AppRoute) -> some View {
         switch route {
-        case .entry(let id, let source):
+        // DECISION: entries open with the standard slide, not the zoom out of the calendar day. With
+        // the zoom, iOS reported the page leaving about a second after it had visibly gone, so the
+        // tab bar always came back late. The slide reports on time, and the bar fades with the swipe.
+        case .entry(let id, _):
             EntryEditorScreen(entryID: id)
                 // The path only changes once the back animation has finished, which made the tab bar
                 // lag behind. These fire as the page starts leaving, and again if a swipe is cancelled.
@@ -89,7 +92,6 @@ struct TabStack<Root: View>: View {
                         willDisappear: { app.router.isLeavingEntry = true }
                     )
                 }
-                .zoomTransition(from: source, in: zoom)
         case .day(let day, let source):
             DayListScreen(day: day)
                 .steadyBottomInset(tabBarInset)
@@ -164,6 +166,8 @@ private struct AppearanceEvents: UIViewControllerRepresentable {
         private weak var followedTransition: UIViewControllerTransitionCoordinator?
         private var displayLink: CADisplayLink?
         private var isWaitingForHide = false
+        /// Set when the finger lifts: the fade to the transition's outcome.
+        private var finish: (from: CGFloat, to: CGFloat, start: CFTimeInterval, duration: TimeInterval)?
 
         // DECISION: one rule decides the tab bar. While a transition of this page runs, the bar
         // follows its progress. When it ends, the bar is set from the truth: is this page still the
@@ -235,7 +239,16 @@ private struct AppearanceEvents: UIViewControllerRepresentable {
             // and hear the navigation controller's transitions; they must leave the bar alone.
             guard coordinator.viewController(forKey: .from) === page || coordinator.viewController(forKey: .to) === page else { return }
             followedTransition = coordinator
+            finish = nil
             startDisplayLink()
+            // Progress stops updating when the finger lifts; animate the rest of the way from there.
+            coordinator.notifyWhenInteractionChanges { [weak self] context in
+                guard let self else { return }
+                let leaving = context.viewController(forKey: .from) === self.page
+                let target: CGFloat = (leaving != context.isCancelled) ? 1 : 0
+                let remaining = context.transitionDuration * (context.isCancelled ? context.percentComplete : 1 - context.percentComplete)
+                self.finish = (from: self.tabBar?.alpha ?? target, to: target, start: CACurrentMediaTime(), duration: max(remaining, 0.1))
+            }
             coordinator.animate(alongsideTransition: nil) { [weak self] context in
                 guard let self else { return }
                 self.followedTransition = nil
@@ -279,7 +292,10 @@ private struct AppearanceEvents: UIViewControllerRepresentable {
 
         @objc private func tick() {
             followTransitionIfAny()
-            if let coordinator = followedTransition, let page {
+            if followedTransition != nil, let finish {
+                let t = min((CACurrentMediaTime() - finish.start) / finish.duration, 1)
+                tabBar?.alpha = finish.from + (finish.to - finish.from) * t
+            } else if let coordinator = followedTransition, let page {
                 // The bar shows as much as the page has gone: fading in as it leaves, out as it arrives.
                 let leaving = coordinator.viewController(forKey: .from) === page
                 let shown = leaving ? coordinator.percentComplete : 1 - coordinator.percentComplete
