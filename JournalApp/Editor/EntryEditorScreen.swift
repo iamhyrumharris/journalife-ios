@@ -148,6 +148,7 @@ struct EntryEditorContent: View {
                     Color.clear.frame(height: gridHeight)
                 } else {
                     keyboardBar
+                        .background { bottomBacking }
                         // Fade in just after the grid starts dropping, so the two never overlap. Leave at
                         // once: fading out, it drifted down over the grid as the keyboard closed.
                         .transition(.asymmetric(
@@ -162,6 +163,9 @@ struct EntryEditorContent: View {
                 EditorActionGrid(perform: perform)
                     .padding(.horizontal)
                     .padding(.bottom, 8)
+                    // The text editor scrolls under the grid, so back it with the page color (fading in
+                    // just above) or long text shows through the translucent tiles.
+                    .background { bottomBacking }
                     .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { gridHeight = $0 }
                     // Push back down by however much the keyboard has shortened the screen, so the
                     // grid stays at the bottom (and drops away) instead of riding up with the keyboard.
@@ -244,6 +248,8 @@ struct EntryEditorContent: View {
                 .font(fonts.body)
                 .focused($focus, equals: .body)
                 .scrollContentBackground(.hidden)
+                // Its text otherwise draws past its frame, up into the title as it scrolls.
+                .clipped()
                 .padding(.horizontal, 11)
                 .overlay(alignment: .topLeading) {
                     if model.text.characters.isEmpty {
@@ -348,6 +354,19 @@ struct EntryEditorContent: View {
     }
 
     // MARK: Keyboard bar
+
+    /// The page color behind the bottom controls, fading in just above them, so text scrolled
+    /// under them doesn't show through.
+    private var bottomBacking: some View {
+        VStack(spacing: 0) {
+            LinearGradient(colors: [JournalColors.background.opacity(0), JournalColors.background], startPoint: .top, endPoint: .bottom)
+                .frame(height: 16)
+            JournalColors.background
+        }
+        .padding(.top, -16)
+        .ignoresSafeArea(edges: .bottom)
+        .allowsHitTesting(false)
+    }
 
     // DECISION: drawn in the view rather than as a .keyboard toolbar, because the system
     // puts an opaque strip behind keyboard toolbars that doesn't match the page. This bar
