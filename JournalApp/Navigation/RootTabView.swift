@@ -179,6 +179,8 @@ private struct AppearanceEvents: UIViewControllerRepresentable {
         override func viewDidAppear(_ animated: Bool) {
             super.viewDidAppear(animated)
             watchBackGestures()
+            // Safety net: the entry has settled on top, so the tab bar belongs hidden.
+            if activePan == nil && !isFollowingTransition { willAppear() }
         }
 
         override func viewDidLayoutSubviews() {
@@ -229,13 +231,13 @@ private struct AppearanceEvents: UIViewControllerRepresentable {
             case .ended, .cancelled, .failed:
                 activePan = nil
                 // Normally the transition coordinator reports the outcome (see watchTransitionOutcome).
-                // Without one, guess from the swipe, as before.
+                // A quick flick can end before the transition has started, so look for it again.
+                if !isFollowingTransition { watchTransitionOutcome() }
                 if !isFollowingTransition {
-                    let velocity = pan.velocity(in: view)
-                    let finishing = pan.state == .ended
-                        && (swipeProgress(pan) > 0.5 || max(velocity.x, velocity.y) > 300)
-                    fadeTabBar(to: finishing ? 1 : 0, over: 0.25)
-                    settle(finishing: finishing)
+                    // No outcome to follow: hold the bar where it is and wait to see where the page ends up.
+                    // Guessing from the swipe's speed showed the bar over the page after quick flicks.
+                    fadeTabBar(to: tabBar?.alpha ?? 0, over: 0)
+                    settle()
                 }
             default:
                 break
@@ -278,7 +280,8 @@ private struct AppearanceEvents: UIViewControllerRepresentable {
         }
 
         private func holdHiddenUntilSwiftUIHides(waited: TimeInterval = 0) {
-            fade = (from: 0, to: 0, start: CACurrentMediaTime(), duration: 0)
+            if fade?.to != 0 { fade = (from: 0, to: 0, start: CACurrentMediaTime(), duration: 0) }
+            startDisplayLink()
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) { [weak self] in
                 guard let self, let bar = self.tabBar else { return }
                 let window = bar.window
@@ -289,23 +292,27 @@ private struct AppearanceEvents: UIViewControllerRepresentable {
                 }
                 guard self.activePan == nil && !self.isFollowingTransition else { return }
                 self.stopDisplayLink()
-                bar.alpha = 1
+                // Safety net: if the entry is still showing, the bar must stay out of sight, even if
+                // SwiftUI hasn't hidden it. A see-through bar also ignores taps.
+                bar.alpha = isGone || self.view.window == nil ? 1 : 0
+                if !isGone && self.view.window != nil { self.willAppear() }
             }
         }
 
-        /// The fallback when there's no transition coordinator: wait until the animation is over.
-        /// If the page is still on top then, the swipe was cancelled.
-        private func settle(finishing: Bool, waited: TimeInterval = 0) {
+        /// The fallback when there's no transition coordinator: wait until any transition is over,
+        /// then check whether the page is still showing. If it is, the swipe was cancelled.
+        private func settle(waited: TimeInterval = 0) {
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) { [weak self] in
-                guard let self else { return }
+                guard let self, self.activePan == nil else { return }
                 let nav = self.navigationController
                 let stillRunning = nav?.transitionCoordinator != nil || self.parent?.transitionCoordinator != nil
-                let isOnTop = self.view.window != nil && nav?.topViewController === self.parent
-                if (stillRunning || (finishing && isOnTop)) && waited < 2 {
-                    self.settle(finishing: finishing, waited: waited + 0.1)
+                if (stillRunning || waited < 0.2) && waited < 2 {
+                    self.settle(waited: waited + 0.1)
                     return
                 }
-                if isOnTop {
+                // Once the page is popped its views leave the window; a cancelled page stays in it.
+                if self.view.window != nil {
+                    self.fadeTabBar(to: 0, over: 0.15)
                     self.willAppear()
                     self.holdHiddenUntilSwiftUIHides()
                 } else {
