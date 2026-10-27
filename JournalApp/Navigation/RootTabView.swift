@@ -161,6 +161,8 @@ private struct AppearanceEvents: UIViewControllerRepresentable {
         private weak var tabBar: UITabBar?
         private weak var activePan: UIPanGestureRecognizer?
         private var displayLink: CADisplayLink?
+        private var fade: (from: CGFloat, to: CGFloat, start: CFTimeInterval, duration: TimeInterval)?
+        private var isFollowingTransition = false
 
         override func viewWillAppear(_ animated: Bool) {
             super.viewWillAppear(animated)
@@ -187,6 +189,11 @@ private struct AppearanceEvents: UIViewControllerRepresentable {
         override func viewWillDisappear(_ animated: Bool) {
             super.viewWillDisappear(animated)
             willDisappear()
+            // Leaving by the back button rather than a swipe: show the bar normally.
+            if activePan == nil && !isFollowingTransition {
+                stopDisplayLink()
+                tabBar?.alpha = 1
+            }
         }
 
         /// Adds this controller as an extra target of the back-swipe recognizers: the navigation
@@ -211,36 +218,83 @@ private struct AppearanceEvents: UIViewControllerRepresentable {
         @objc private func backGestureChanged(_ recognizer: UIGestureRecognizer) {
             guard view.window != nil, let pan = recognizer as? UIPanGestureRecognizer else { return }
             // The tab bar fades in with the swipe, like the system's hidesBottomBarWhenPushed.
-            // Read from the saved reference: once the page starts leaving, tabBarController is nil.
-            let tabBar = self.tabBar
             switch pan.state {
             case .began:
                 willDisappear()
-                // SwiftUI unhides the tab bar at full opacity on its own schedule, so follow the
-                // swipe every frame rather than only when the finger moves.
                 activePan = pan
+                fade = nil
                 tabBar?.alpha = 0
-                let link = CADisplayLink(target: self, selector: #selector(followSwipe))
-                link.add(to: .main, forMode: .common)
-                displayLink = link
-            case .changed:
-                break
+                startDisplayLink()
+                watchTransitionOutcome()
             case .ended, .cancelled, .failed:
-                displayLink?.invalidate()
-                displayLink = nil
                 activePan = nil
-                let velocity = pan.velocity(in: view)
-                let finishing = pan.state == .ended
-                    && (swipeProgress(pan) > 0.5 || max(velocity.x, velocity.y) > 300)
-                UIView.animate(withDuration: 0.25) { tabBar?.alpha = finishing ? 1 : 0 }
-                settle(finishing: finishing)
+                // Normally the transition coordinator reports the outcome (see watchTransitionOutcome).
+                // Without one, guess from the swipe, as before.
+                if !isFollowingTransition {
+                    let velocity = pan.velocity(in: view)
+                    let finishing = pan.state == .ended
+                        && (swipeProgress(pan) > 0.5 || max(velocity.x, velocity.y) > 300)
+                    fadeTabBar(to: finishing ? 1 : 0, over: 0.25)
+                    settle(finishing: finishing)
+                }
             default:
                 break
             }
         }
 
-        /// After the finger lifts, the back animation keeps running (over a second on a device).
-        /// Wait until it's actually over: if the page is still on top then, the swipe was cancelled.
+        /// DECISION: UIKit decides at finger lift whether a back swipe finishes or cancels, and the
+        /// transition coordinator says which. Guessing from the swipe instead sometimes got it wrong,
+        /// and waiting for the animation to end left SwiftUI showing the bar at full strength over
+        /// the page for about a second after a cancel. Now the bar follows the real outcome at once.
+        private func watchTransitionOutcome() {
+            let coordinator = navigationController?.transitionCoordinator ?? parent?.transitionCoordinator
+            guard let coordinator, coordinator.isInteractive else { return }
+            isFollowingTransition = true
+            coordinator.notifyWhenInteractionChanges { [weak self] context in
+                guard let self else { return }
+                self.activePan = nil
+                let remaining = context.transitionDuration * (1 - context.percentComplete)
+                self.fadeTabBar(to: context.isCancelled ? 0 : 1, over: max(remaining, 0.15))
+            }
+            coordinator.animate(alongsideTransition: nil) { [weak self] context in
+                guard let self else { return }
+                self.isFollowingTransition = false
+                if context.isCancelled {
+                    // Still on the entry: hide the bar again, and keep it see-through until SwiftUI has.
+                    self.willAppear()
+                    self.holdHiddenUntilSwiftUIHides()
+                } else {
+                    self.stopDisplayLink()
+                    self.tabBar?.alpha = 1
+                }
+            }
+        }
+
+        /// Fades the bar toward a target. Driven by the display link, because SwiftUI sets the bar
+        /// back to full opacity on its own schedule while the page is leaving.
+        private func fadeTabBar(to target: CGFloat, over duration: TimeInterval) {
+            fade = (from: tabBar?.alpha ?? 0, to: target, start: CACurrentMediaTime(), duration: duration)
+            startDisplayLink()
+        }
+
+        private func holdHiddenUntilSwiftUIHides(waited: TimeInterval = 0) {
+            fade = (from: 0, to: 0, start: CACurrentMediaTime(), duration: 0)
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) { [weak self] in
+                guard let self, let bar = self.tabBar else { return }
+                let window = bar.window
+                let isGone = bar.isHidden || window == nil || bar.convert(bar.bounds, to: window).minY >= window!.bounds.height
+                if !isGone && waited < 2 && self.activePan == nil && !self.isFollowingTransition {
+                    self.holdHiddenUntilSwiftUIHides(waited: waited + 0.1)
+                    return
+                }
+                guard self.activePan == nil && !self.isFollowingTransition else { return }
+                self.stopDisplayLink()
+                bar.alpha = 1
+            }
+        }
+
+        /// The fallback when there's no transition coordinator: wait until the animation is over.
+        /// If the page is still on top then, the swipe was cancelled.
         private func settle(finishing: Bool, waited: TimeInterval = 0) {
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) { [weak self] in
                 guard let self else { return }
@@ -251,14 +305,36 @@ private struct AppearanceEvents: UIViewControllerRepresentable {
                     self.settle(finishing: finishing, waited: waited + 0.1)
                     return
                 }
-                if isOnTop { self.willAppear() }
-                self.tabBar?.alpha = 1
+                if isOnTop {
+                    self.willAppear()
+                    self.holdHiddenUntilSwiftUIHides()
+                } else {
+                    self.stopDisplayLink()
+                    self.tabBar?.alpha = 1
+                }
             }
         }
 
-        @objc private func followSwipe() {
-            guard let pan = activePan else { return }
-            tabBar?.alpha = swipeProgress(pan)
+        private func startDisplayLink() {
+            guard displayLink == nil else { return }
+            let link = CADisplayLink(target: self, selector: #selector(tick))
+            link.add(to: .main, forMode: .common)
+            displayLink = link
+        }
+
+        private func stopDisplayLink() {
+            displayLink?.invalidate()
+            displayLink = nil
+            fade = nil
+        }
+
+        @objc private func tick() {
+            if let pan = activePan {
+                tabBar?.alpha = swipeProgress(pan)
+            } else if let fade {
+                let t = fade.duration > 0 ? min((CACurrentMediaTime() - fade.start) / fade.duration, 1) : 1
+                tabBar?.alpha = fade.from + (fade.to - fade.from) * t
+            }
         }
 
         /// How far the back swipe has gone, 0 to 1: sideways for the edge swipe, down for the zoom.

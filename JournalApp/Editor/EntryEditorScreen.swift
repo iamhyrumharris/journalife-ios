@@ -281,6 +281,7 @@ struct EntryEditorContent: View {
                     }
                 }
                 .onChange(of: model.text) { old, _ in
+                    if RichTextFormatting.normalizePastedText(oldText: old, in: &model.text, selection: &model.selection, context: fontContext, fonts: fonts) { return }
                     _ = RichTextFormatting.continueListIfNeeded(oldText: old, in: &model.text, selection: &model.selection)
                 }
 

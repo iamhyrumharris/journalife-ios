@@ -169,6 +169,44 @@ public enum RichTextFormatting {
         return true
     }
 
+    /// After a paste, restyles the text in the journal's own fonts. Call from `onChange(of: text)`
+    /// with the old and new text; returns true if it changed anything.
+    ///
+    /// DECISION: pasted text keeps bold, italic, underline, strikethrough and headings, and drops
+    /// everything else the source app sent (its font, size and colors). It goes through the same
+    /// conversion the entry is saved with, so what you see after pasting is what gets stored.
+    /// Anything inserted more than one character at a time counts, which also covers dictation
+    /// and autocorrect; for those the conversion changes nothing visible.
+    public static func normalizePastedText(
+        oldText: AttributedString,
+        in text: inout AttributedString,
+        selection: inout AttributedTextSelection,
+        context: Font.Context,
+        fonts: EntryFonts = .standard
+    ) -> Bool {
+        guard text.characters.count >= oldText.characters.count + 2 else { return false }
+        let normalized = RichTextBridge.attributedString(
+            from: RichTextBridge.richText(from: text, context: context, fonts: fonts),
+            fonts: fonts
+        )
+        guard normalized != text else { return false }
+        // Indices don't carry over to the new string, so keep the cursor by its offset.
+        let cursorOffset: Int?
+        if case .insertionPoint(let index) = selection.indices(in: text) {
+            cursorOffset = text.characters.distance(from: text.characters.startIndex, to: index)
+        } else {
+            cursorOffset = nil
+        }
+        text = normalized
+        if let cursorOffset {
+            let index = text.characters.index(text.characters.startIndex, offsetBy: min(cursorOffset, text.characters.count))
+            selection = AttributedTextSelection(insertionPoint: index)
+        } else {
+            selection = AttributedTextSelection(insertionPoint: text.endIndex)
+        }
+        return true
+    }
+
     /// The text of the line before the cursor's line (or the cursor's own line with `includeCurrent`).
     private static func previousLine(
         in characters: AttributedString.CharacterView,
