@@ -3,6 +3,18 @@ import SwiftUI
 import UniformTypeIdentifiers
 
 extension UTType {
+    /// Every type our archive files can have. Another app (Apple's Journal) claims the old
+    /// ".journalarchive" extension on some devices, so those files carry its type instead of ours;
+    /// allowing only our type greyed them out in the picker. The importer still checks the contents.
+    static var journalArchiveTypes: [UTType] {
+        let byExtension = [ArchiveFormat.fileExtension, ArchiveFormat.legacyFileExtension].flatMap {
+            UTType.types(tag: $0, tagClass: .filenameExtension, conformingTo: nil)
+        }
+        var result = [journalArchive]
+        for type in byExtension where !result.contains(type) { result.append(type) }
+        return result
+    }
+
     /// Declared in Info.plist (UTExportedTypeDeclarations), conforming to public.zip-archive.
     static var journalArchive: UTType {
         UTType("\(Bundle.main.bundleIdentifier ?? "com.iamhyrumharris.journalife").archive")
@@ -40,7 +52,7 @@ struct DataSettingsSection: View {
             // to every row, so several rows tried to present at once and Settings closed instead.
             // They come after .disabled so the alert's OK button stays enabled.
             .task { await refreshStats() }
-            .fileImporter(isPresented: $isImporting, allowedContentTypes: [.journalArchive]) { result in
+            .fileImporter(isPresented: $isImporting, allowedContentTypes: UTType.journalArchiveTypes) { result in
                 switch result {
                 case .success(let url): Task { await importArchive(url) }
                 case .failure(let error): resultMessage = error.localizedDescription

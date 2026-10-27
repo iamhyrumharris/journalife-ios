@@ -1,7 +1,7 @@
 import Foundation
 import SwiftData
 
-/// Exports and imports `.journalarchive` files on a background context.
+/// Exports and imports `.journalife` archive files on a background context.
 ///
 /// After an import, call `JournalStores.reloadAfterBackgroundChanges()` on the main actor
 /// so screens refetch.

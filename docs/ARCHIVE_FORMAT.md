@@ -1,6 +1,6 @@
 # Journal archive format, version 1
 
-A `.journalarchive` file is a ZIP file. Entries are stored without compression and every entry
+A `.journalife` file (older exports: `.journalarchive`) is a ZIP file. Entries are stored without compression and every entry
 carries ZIP64 fields, so archives over 4 GB work. It opens with Finder or `unzip`.
 
 ```

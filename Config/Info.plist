@@ -17,7 +17,7 @@
 			</array>
 		</dict>
 	</array>
-	<!-- The .journalarchive backup file (a zip). -->
+	<!-- The .journalife backup file (a zip). Older exports used .journalarchive. -->
 	<key>UTExportedTypeDeclarations</key>
 	<array>
 		<dict>
@@ -34,6 +34,7 @@
 			<dict>
 				<key>public.filename-extension</key>
 				<array>
+					<string>journalife</string>
 					<string>journalarchive</string>
 				</array>
 			</dict>

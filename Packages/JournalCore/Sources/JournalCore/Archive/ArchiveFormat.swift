@@ -1,6 +1,6 @@
 import Foundation
 
-/// The `.journalarchive` format, version 1. See docs/ARCHIVE_FORMAT.md.
+/// The `.journalife` archive format, version 1. See docs/ARCHIVE_FORMAT.md.
 ///
 /// A ZIP file containing:
 /// - `manifest.json`: `ArchiveManifest`
@@ -11,7 +11,10 @@ import Foundation
 /// The WebDAV sync format (Phase 3) reuses these JSON shapes.
 public enum ArchiveFormat {
     public static let formatVersion = 1
-    public static let fileExtension = "journalarchive"
+    public static let fileExtension = "journalife"
+    /// The extension older exports used. Apple's Journal app claims it on some devices, so new
+    /// exports use `fileExtension`; files with this one can still be imported.
+    public static let legacyFileExtension = "journalarchive"
 
     static let manifestPath = "manifest.json"
     static let tagsPath = "tags.json"
