@@ -61,6 +61,8 @@ struct EntryEditorContent: View {
     @State private var isShowingCamera = false
     @State private var isConfirmingDelete = false
     @State private var viewerStart: MediaReference?
+    @State private var isShowingAllPhotos = false
+    @State private var allPhotosViewerStart: MediaReference?
     @State private var comingSoon: LocalizedStringResource?
     @State private var permissionMessage: LocalizedStringResource?
 
@@ -104,15 +106,21 @@ struct EntryEditorContent: View {
             .onChange(of: pickerItems) { _, items in
                 guard !items.isEmpty else { return }
                 pickerItems = []
+                // The collage is hidden while typing, so close the keyboard to show what was added.
+                focus = nil
                 Task { await model.importPicked(items) }
             }
             .fullScreenCover(isPresented: $isShowingCamera) {
-                CameraPicker { data in Task { await model.importCameraPhoto(data) } }
+                CameraPicker { data in
+                    focus = nil
+                    Task { await model.importCameraPhoto(data) }
+                }
                     .ignoresSafeArea()
             }
             .fullScreenCover(item: $viewerStart) { start in
-                MediaViewer(items: model.media, startAt: start.id)
+                MediaViewer(items: collageItems, startAt: start.id)
             }
+            .sheet(isPresented: $isShowingAllPhotos) { allPhotosSheet }
             .sheet(item: $sheet) { sheet in sheetContent(sheet) }
             .confirmationDialog("Delete this entry?", isPresented: $isConfirmingDelete, titleVisibility: .visible) {
                 Button("Delete Entry", role: .destructive) { model.delete() }
@@ -190,8 +198,40 @@ struct EntryEditorContent: View {
             .sensoryFeedback(.impact(weight: .light), trigger: entry?.liveTags.count)
     }
 
+    /// Photos and videos, the cover first and the rest in the entry's order.
+    private var collageItems: [MediaReference] {
+        let visual = model.media.filter { $0.kind.isVisual }
+        guard let coverID = entry?.coverAttachment?.id, let cover = visual.first(where: { $0.id == coverID }) else { return visual }
+        return [cover] + visual.filter { $0.id != coverID }
+    }
+
+    /// Moves a photo to a position counted among the photos only (the All Photos grid's order).
+    private func movePhoto(_ item: MediaReference, toPhotoIndex index: Int) {
+        let visual = model.media.filter { $0.kind.isVisual }
+        guard visual.indices.contains(index), let target = model.media.firstIndex(of: visual[index]) else { return }
+        model.move(item, to: target)
+    }
+
     private var editorColumn: some View {
         VStack(spacing: 0) {
+            // DECISION: the collage sits above the title and folds away while you type. Making it
+            // scroll with the text would mean taking over TextEditor's own scrolling, which stops
+            // it keeping the cursor in view.
+            if !collageItems.isEmpty && focus == nil {
+                PhotoCollage(
+                    items: collageItems,
+                    onOpen: { viewerStart = $0 },
+                    onShowAll: { isShowingAllPhotos = true },
+                    onSetCover: { model.setCover($0) },
+                    onRemove: { model.remove($0) }
+                )
+                // About 40% of the screen, capped on tall phones.
+                .containerRelativeFrame(.vertical) { height, _ in min(height * 0.4, 360) }
+                .padding(.horizontal)
+                .padding(.top, 8)
+                .transition(.opacity.combined(with: .move(edge: .top)))
+            }
+
             TextField("Title", text: $model.title)
                 .font(.title2.bold())
                 .focused($focus, equals: .title)
@@ -220,9 +260,11 @@ struct EntryEditorContent: View {
                 }
 
             chipsRow
-            if !model.media.isEmpty {
+            // Photos and videos are in the collage; other attachments (audio, files) stay here.
+            let otherMedia = model.media.filter { !$0.kind.isVisual }
+            if !otherMedia.isEmpty {
                 MediaStrip(
-                    items: model.media,
+                    items: otherMedia,
                     coverID: entry?.coverAttachment?.id,
                     onOpen: { viewerStart = $0 },
                     onMove: { model.move($0, to: $1) },
@@ -234,6 +276,29 @@ struct EntryEditorContent: View {
             if model.isImporting {
                 ProgressView("Adding media…")
                     .padding(.vertical, 6)
+            }
+        }
+    }
+
+    private var allPhotosSheet: some View {
+        NavigationStack {
+            AllPhotosGrid(
+                items: model.media.filter { $0.kind.isVisual },
+                coverID: entry?.coverAttachment?.id,
+                onOpen: { allPhotosViewerStart = $0 },
+                onMove: { movePhoto($0, toPhotoIndex: $1) },
+                onSetCover: { model.setCover($0) },
+                onRemove: { model.remove($0) }
+            )
+            .navigationTitle("All Photos")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Done", role: .confirm) { isShowingAllPhotos = false }
+                }
+            }
+            .fullScreenCover(item: $allPhotosViewerStart) { start in
+                MediaViewer(items: model.media.filter { $0.kind.isVisual }, startAt: start.id)
             }
         }
     }
