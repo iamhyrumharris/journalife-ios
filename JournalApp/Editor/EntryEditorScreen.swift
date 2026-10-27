@@ -55,6 +55,7 @@ struct EntryEditorContent: View {
     @State private var gridHeight: CGFloat = 0
     @State private var keyboardLift: CGFloat = 0
     @State private var unshrunkBottom: CGFloat = 0
+    @State private var pageHeight: CGFloat = 0
     @State private var sheet: EditorSheet?
     @State private var pickerItems: [PhotosPickerItem] = []
     @State private var isShowingPhotoPicker = false
@@ -106,15 +107,10 @@ struct EntryEditorContent: View {
             .onChange(of: pickerItems) { _, items in
                 guard !items.isEmpty else { return }
                 pickerItems = []
-                // The collage is hidden while typing, so close the keyboard to show what was added.
-                focus = nil
                 Task { await model.importPicked(items) }
             }
             .fullScreenCover(isPresented: $isShowingCamera) {
-                CameraPicker { data in
-                    focus = nil
-                    Task { await model.importCameraPhoto(data) }
-                }
+                CameraPicker { data in Task { await model.importCameraPhoto(data) } }
                     .ignoresSafeArea()
             }
             .fullScreenCover(item: $viewerStart) { start in
@@ -216,12 +212,22 @@ struct EntryEditorContent: View {
         model.move(item, to: target)
     }
 
+    // DECISION: the whole page is one scroll view, so the collage scrolls away with the text.
+    // The text editor doesn't scroll itself; it grows to fit its text, and the page keeps the
+    // cursor in view as you type.
     private var editorColumn: some View {
+        ScrollView {
+            pageContent
+                // At least a screen tall, so tapping anywhere below the text starts writing.
+                .frame(minHeight: pageHeight, alignment: .top)
+        }
+        .scrollDismissesKeyboard(.interactively)
+        .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { pageHeight = $0 }
+    }
+
+    private var pageContent: some View {
         VStack(spacing: 0) {
-            // DECISION: the collage sits above the title and folds away while you type. Making it
-            // scroll with the text would mean taking over TextEditor's own scrolling, which stops
-            // it keeping the cursor in view.
-            if !collageItems.isEmpty && focus == nil {
+            if !collageItems.isEmpty {
                 PhotoCollage(
                     items: collageItems,
                     onOpen: { viewerStart = $0 },
@@ -229,8 +235,9 @@ struct EntryEditorContent: View {
                     onSetCover: { model.setCover($0) },
                     onRemove: { model.remove($0) }
                 )
-                // About 40% of the screen, capped on tall phones.
-                .containerRelativeFrame(.vertical) { height, _ in min(height * 0.4, 360) }
+                // About 40% of the page, capped on tall phones. Measured without the keyboard,
+                // which shortens the page, so the collage keeps its size while you type.
+                .frame(height: min((pageHeight + keyboardLift) * 0.4, 360))
                 .padding(.horizontal)
                 .padding(.top, 8)
                 .transition(.opacity.combined(with: .move(edge: .top)))
@@ -244,12 +251,24 @@ struct EntryEditorContent: View {
                 .padding(.horizontal)
                 .padding(.top, 8)
 
-            TextEditor(text: $model.text, selection: $model.selection)
+            // DECISION: TextEditor doesn't grow to fit its text when its scrolling is off, so a
+            // hidden Text with the same attributed string (and the editor's insets, plus a spare
+            // line for the cursor) sets its height. That keeps the native editor, with its
+            // selection and formatting, instead of a UITextView wrapper.
+            Text(model.text + AttributedString("\n "))
                 .font(fonts.body)
-                .focused($focus, equals: .body)
-                .scrollContentBackground(.hidden)
-                // Its text otherwise draws past its frame, up into the title as it scrolls.
-                .clipped()
+                .padding(.horizontal, 5)
+                .padding(.vertical, 8)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .hidden()
+                .accessibilityHidden(true)
+                .overlay {
+                    TextEditor(text: $model.text, selection: $model.selection)
+                        .font(fonts.body)
+                        .focused($focus, equals: .body)
+                        .scrollContentBackground(.hidden)
+                        .scrollDisabled(true)
+                }
                 .padding(.horizontal, 11)
                 .overlay(alignment: .topLeading) {
                     if model.text.characters.isEmpty {
@@ -264,6 +283,12 @@ struct EntryEditorContent: View {
                 .onChange(of: model.text) { old, _ in
                     _ = RichTextFormatting.continueListIfNeeded(oldText: old, in: &model.text, selection: &model.selection)
                 }
+
+            // The empty page below the text: tapping it starts writing.
+            Color.clear
+                .frame(maxHeight: .infinity)
+                .contentShape(.rect)
+                .onTapGesture { focus = .body }
 
             chipsRow
             // Photos and videos are in the collage; other attachments (audio, files) stay here.
