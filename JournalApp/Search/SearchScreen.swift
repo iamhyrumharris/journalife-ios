@@ -9,7 +9,7 @@ struct SearchScreen: View {
     @State private var query = SearchQuery()
     @State private var results: [EntryRowData] = []
     @State private var tags: [JournalCore.Tag] = []
-    @State private var isFieldFocused = false
+    @FocusState private var isFieldFocused: Bool
     @State private var isShowingDateRange = false
 
     private var recentSearches: [String] {
@@ -21,6 +21,10 @@ struct SearchScreen: View {
     var body: some View {
         List {
             Section {
+                searchField
+                    .listRowInsets(EdgeInsets())
+                    .listRowBackground(JournalColors.background)
+                    .listRowSeparator(.hidden)
                 filterChips
                     .listRowInsets(EdgeInsets())
                     .listRowBackground(JournalColors.background)
@@ -67,10 +71,7 @@ struct SearchScreen: View {
                 ContentUnavailableView.search(text: query.text)
             }
         }
-        .searchable(text: $query.text, isPresented: $isFieldFocused, prompt: "Titles and text")
-        .onSubmit(of: .search) { remember(query.text) }
         .solidNavigationHeader()
-        .tabRootToolbar(title: "Search")
         .onAppear {
             tags = app.stores.tags.allTags()
             isFieldFocused = true
@@ -112,6 +113,37 @@ struct SearchScreen: View {
             Text("Find words anywhere in titles and entries. Capitals and accents don't matter. Use the filters to narrow by tag, rating, date, media, location or favorites.")
         }
         .padding(.top, 40)
+    }
+
+    // MARK: Field
+
+    // DECISION: our own field instead of .searchable. Pages open on one stack above the tabs, so a
+    // tab's page can't put a field in the navigation bar; this one sits at the top of the page.
+    private var searchField: some View {
+        HStack(spacing: 6) {
+            Image(systemName: "magnifyingglass")
+                .foregroundStyle(.secondary)
+            TextField("Titles and text", text: $query.text)
+                .focused($isFieldFocused)
+                .submitLabel(.search)
+                .autocorrectionDisabled()
+                .onSubmit { remember(query.text) }
+            if !query.text.isEmpty {
+                Button {
+                    query.text = ""
+                } label: {
+                    Image(systemName: "xmark.circle.fill")
+                        .foregroundStyle(.secondary)
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel(Text("Clear"))
+            }
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 10)
+        .background(.fill.tertiary, in: .capsule)
+        .padding(.horizontal)
+        .padding(.top, 6)
     }
 
     // MARK: Filters

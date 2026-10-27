@@ -5,6 +5,7 @@ import SwiftUI
 /// Settings and a tab-specific ••• menu on the right.
 struct TabRootToolbar<MenuContent: View>: ViewModifier {
     let title: LocalizedStringResource
+    var showsMenu = true
     @ViewBuilder var menu: () -> MenuContent
 
     @Environment(AppModel.self) private var app
@@ -28,7 +29,7 @@ struct TabRootToolbar<MenuContent: View>: ViewModifier {
                     } label: {
                         Label("Settings", systemImage: "gearshape")
                     }
-                    if MenuContent.self != EmptyView.self {
+                    if showsMenu && MenuContent.self != EmptyView.self {
                         Menu {
                             menu()
                         } label: {

@@ -3,16 +3,9 @@ import JournalUI
 import PhotosUI
 import SwiftUI
 
-/// The entry editor, pushed onto the current tab's stack so back-swipe works.
+/// The entry editor, pushed onto the app's stack above the tabs so back-swipe works.
 struct EntryEditorScreen: View {
     let entryID: UUID
-
-    /// The window's own bottom inset (the home indicator), which never includes the tab bar.
-    @MainActor private static var homeIndicatorInset: CGFloat {
-        UIApplication.shared.connectedScenes
-            .compactMap { ($0 as? UIWindowScene)?.keyWindow }
-            .first?.safeAreaInsets.bottom ?? 0
-    }
 
     @Environment(AppModel.self) private var app
     @Environment(\.usesSerifBody) private var usesSerifBody
@@ -30,12 +23,6 @@ struct EntryEditorScreen: View {
                 Color.clear
             }
         }
-        // DECISION: the page ignores the tab bar's safe area and keeps just the home indicator's.
-        // A back swipe shows the tab bar while it runs; when the swipe was cancelled, SwiftUI
-        // hides it again a moment later, and for one frame the bar's height reached this page and
-        // lifted the action grid. The keyboard's safe area still applies.
-        .safeAreaPadding(.bottom, Self.homeIndicatorInset)
-        .ignoresSafeArea(.container, edges: .bottom)
         // Fill under the keyboard too, so its rounded top corners show the page color, not white.
         .background { JournalColors.background.ignoresSafeArea() }
         .onAppear {
