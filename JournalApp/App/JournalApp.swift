@@ -43,19 +43,19 @@ struct AppRootView: View {
     @AppStorage(AppSettings.textSize) private var textSize = EntryTextSize.large
     @AppStorage(AppSettings.timelineThumbnails) private var timelineThumbnails = false
 
+    /// The lock screen while locked; otherwise, whenever locking is on and the app isn't active,
+    /// a plain cover so the app switcher never shows entries.
+    private var lockCover: LockCover {
+        if app.lock.isLocked { return .locked }
+        if app.lock.isEnabled && scenePhase != .active { return .privacy }
+        return .none
+    }
+
     var body: some View {
         @Bindable var app = app
         RootTabView()
-            .overlay {
-                if app.lock.isLocked {
-                    LockScreenView()
-                        .transition(.opacity)
-                } else if app.lock.isEnabled && scenePhase != .active {
-                    // Hides content in the app switcher snapshot whenever locking is on.
-                    PrivacyCover()
-                }
-            }
-            .animation(.easeInOut(duration: 0.2), value: app.lock.isLocked)
+            // In a window of its own, above sheets and full-screen covers too.
+            .background { LockWindowInstaller(cover: lockCover, isActive: scenePhase == .active, app: app) }
             .tint(accent.color)
             .preferredColorScheme(theme.colorScheme)
             .environment(\.thumbnailCache, app.thumbnails)

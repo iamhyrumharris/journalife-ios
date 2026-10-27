@@ -2,8 +2,9 @@ import SwiftUI
 
 /// Full-screen blurred cover with an unlock button. Asks for Face ID as soon as it appears.
 struct LockScreenView: View {
+    /// Whether the app is in the foreground; Face ID is asked for each time it becomes true.
+    let isActive: Bool
     @Environment(AppModel.self) private var app
-    @Environment(\.scenePhase) private var scenePhase
 
     var body: some View {
         ZStack {
@@ -30,8 +31,8 @@ struct LockScreenView: View {
             }
         }
         .ignoresSafeArea()
-        .task(id: scenePhase) {
-            if scenePhase == .active { await app.lock.unlock() }
+        .task(id: isActive) {
+            if isActive { await app.lock.unlock() }
         }
     }
 }
@@ -51,6 +52,6 @@ struct PrivacyCover: View {
 }
 
 #Preview {
-    LockScreenView()
+    LockScreenView(isActive: true)
         .environment(PreviewSupport.model)
 }
