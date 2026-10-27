@@ -40,7 +40,7 @@ struct DataSettingsSection: View {
             // to every row, so several rows tried to present at once and Settings closed instead.
             // They come after .disabled so the alert's OK button stays enabled.
             .task { await refreshStats() }
-            .fileImporter(isPresented: $isImporting, allowedContentTypes: [.journalArchive, .zip, .data]) { result in
+            .fileImporter(isPresented: $isImporting, allowedContentTypes: [.journalArchive]) { result in
                 switch result {
                 case .success(let url): Task { await importArchive(url) }
                 case .failure(let error): resultMessage = error.localizedDescription
