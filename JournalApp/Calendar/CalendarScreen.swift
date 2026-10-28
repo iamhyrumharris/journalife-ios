@@ -59,7 +59,7 @@ struct CalendarScreen: View {
             Button {
                 isShowingJumpToDate = true
             } label: {
-                Label("Jump to Date…", systemImage: "calendar.badge.magnifyingglass")
+                Label("Jump to Date…", systemImage: "calendar")
             }
             Button {
                 app.router.push(.onThisDay(.today))

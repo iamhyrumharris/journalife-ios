@@ -4,12 +4,14 @@ import MapKit
 import SwiftUI
 import UIKit
 
+// `JournalCore.MapPin` is spelled out because MapKit also has a (deprecated) SwiftUI `MapPin`.
+
 /// The map of entries, built on `MKMapView` for its native pin clustering.
 // DECISION: SwiftUI's `Map` has no clustering, and clustering in code per zoom level would need
 // redoing on every camera change. `MKMapView` with `MKClusterAnnotation` clusters thousands of
 // pins smoothly, so the map is wrapped instead.
 struct EntryMapView: UIViewRepresentable {
-    let pins: [MapPin]
+    let pins: [JournalCore.MapPin]
     let style: MapStyle
     /// Changes when the map should zoom to fit every pin again.
     let fitRequest: Int
@@ -52,7 +54,7 @@ struct EntryMapView: UIViewRepresentable {
         }
     }
 
-    final class Coordinator: NSObject, @preconcurrency MKMapViewDelegate {
+    final class Coordinator: NSObject, MKMapViewDelegate {
         var parent: EntryMapView?
         var style: MapStyle?
         var fitRequest = 0
@@ -60,7 +62,7 @@ struct EntryMapView: UIViewRepresentable {
         private var annotations: [UUID: EntryAnnotation] = [:]
 
         /// Adds, moves and removes pins to match the entries, leaving unchanged ones alone.
-        func update(_ map: MKMapView, pins: [MapPin]) {
+        func update(_ map: MKMapView, pins: [JournalCore.MapPin]) {
             var stale = annotations
             var added: [EntryAnnotation] = []
             for pin in pins {
@@ -92,7 +94,24 @@ struct EntryMapView: UIViewRepresentable {
                 rect = rect.insetBy(dx: -max(0, minimum - rect.width) / 2, dy: -max(0, minimum - rect.height) / 2)
             }
             let padding = UIEdgeInsets(top: 60, left: 40, bottom: 60, right: 40)
-            map.setVisibleMapRect(rect, edgePadding: padding, animated: animated)
+            let start = map.camera.copy() as? MKMapCamera
+            map.setVisibleMapRect(rect, edgePadding: padding, animated: false)
+            // DECISION: pins spread wider than the map can zoom out (say Utah, London and Tokyo)
+            // would leave the map centered on the empty middle, so it centers on the median pin
+            // instead, which shows where most entries are.
+            if !map.visibleMapRect.contains(rect) {
+                map.setCenter(medianCoordinate(), animated: false)
+            }
+            if animated, let start, let end = map.camera.copy() as? MKMapCamera {
+                map.setCamera(start, animated: false)
+                map.setCamera(end, animated: true)
+            }
+        }
+
+        private func medianCoordinate() -> CLLocationCoordinate2D {
+            let latitudes = annotations.values.map(\.coordinate.latitude).sorted()
+            let longitudes = annotations.values.map(\.coordinate.longitude).sorted()
+            return CLLocationCoordinate2D(latitude: latitudes[latitudes.count / 2], longitude: longitudes[longitudes.count / 2])
         }
 
         // MARK: MKMapViewDelegate
@@ -165,10 +184,10 @@ enum MapStyle: String, CaseIterable, Identifiable {
 
 /// One entry's pin.
 final class EntryAnnotation: NSObject, MKAnnotation {
-    nonisolated let pin: MapPin
+    nonisolated let pin: JournalCore.MapPin
     nonisolated let coordinate: CLLocationCoordinate2D
 
-    init(pin: MapPin) {
+    init(pin: JournalCore.MapPin) {
         self.pin = pin
         self.coordinate = CLLocationCoordinate2D(latitude: pin.latitude, longitude: pin.longitude)
     }
