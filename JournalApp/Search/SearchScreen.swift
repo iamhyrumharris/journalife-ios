@@ -85,6 +85,8 @@ struct SearchScreen: View {
         .onAppear {
             tags = app.stores.tags.allTags()
             topTags = app.stores.tags.mostUsedTags()
+            // Drop filters on tags that have since been deleted, or the search finds nothing.
+            query.tagIDs.formIntersection(tags.map(\.id))
             isFieldFocused = true
         }
         // Opening a result remembers the search. A tap gesture on the rows did this before,

@@ -50,6 +50,8 @@ struct LockWindowInstaller: UIViewRepresentable {
                 self.host = host
             }
             guard let window, let host else { return }
+            // Match the theme set on the app's main window (see applyWindowStyle).
+            window.overrideUserInterfaceStyle = scene?.windows.first { $0 !== window }?.overrideUserInterfaceStyle ?? .unspecified
             host.rootView = AnyView(LockLayer(cover: cover, isActive: isActive).environment(app))
             window.isHidden = cover == .none
         }

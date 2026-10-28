@@ -57,7 +57,6 @@ struct AppRootView: View {
             // In a window of its own, above sheets and full-screen covers too.
             .background { LockWindowInstaller(cover: lockCover, isActive: scenePhase == .active, app: app) }
             .tint(accent.color)
-            .preferredColorScheme(theme.colorScheme)
             .environment(\.thumbnailCache, app.thumbnails)
             .environment(\.storageLocation, app.stores.location)
             .environment(\.showsRowThumbnails, timelineThumbnails)
@@ -66,13 +65,25 @@ struct AppRootView: View {
             .sheet(isPresented: $app.isShowingSettings) {
                 SettingsSheet()
                     .tint(accent.color)
-                    .preferredColorScheme(theme.colorScheme)
             }
+            // DECISION: the theme is set on the app's windows rather than with preferredColorScheme.
+            // SwiftUI applied Dark and Light at once, but going back to System left open screens
+            // (Settings itself) in the old mode until they were rebuilt. The window style takes
+            // effect everywhere at once, including sheets and the lock window.
+            .onChange(of: theme, initial: true) { _, theme in applyWindowStyle(theme) }
             .onOpenURL { app.handle(url: $0) }
             .onChange(of: scenePhase) { _, phase in
                 app.lock.sceneDidChange(to: phase)
                 if phase == .background { app.flushEditors() }
             }
+    }
+}
+
+@MainActor
+private func applyWindowStyle(_ theme: AppTheme) {
+    for scene in UIApplication.shared.connectedScenes {
+        guard let windowScene = scene as? UIWindowScene else { continue }
+        for window in windowScene.windows { window.overrideUserInterfaceStyle = theme.interfaceStyle }
     }
 }
 

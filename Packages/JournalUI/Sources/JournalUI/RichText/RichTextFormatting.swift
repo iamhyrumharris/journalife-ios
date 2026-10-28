@@ -1,3 +1,4 @@
+import JournalCore
 import SwiftUI
 
 /// Text styles offered on the editor's keyboard toolbar.
@@ -68,12 +69,37 @@ public enum RichTextFormatting {
                 container[StrikethroughKey.self] = turnOn ? .single : nil
             }
         case .heading:
-            // DECISION: headings apply to the selected text (or what you type next) rather
-            // than snapping to whole paragraphs; that matches how the system format menu works.
+            // DECISION: a heading covers every whole paragraph the cursor or selection touches,
+            // as in Notes, so half a line can't be a heading.
             let turnOn = RichTextBridge.headingLevel(current[HeadingLevelAttribute.self], font: currentFont, fonts: fonts) == nil
+            // What you type next at the cursor.
             text.transformAttributes(in: &selection) { container in
                 container[HeadingLevelAttribute.self] = turnOn ? 1 : nil
                 container[FontKey.self] = turnOn ? fonts.heading : nil
+            }
+            let characters = text.characters
+            let (lower, upper): (AttributedString.Index, AttributedString.Index)
+            switch selection.indices(in: text) {
+            case .insertionPoint(let index):
+                (lower, upper) = (index, index)
+            case .ranges(let ranges):
+                (lower, upper) = (ranges.ranges.first?.lowerBound ?? text.endIndex, ranges.ranges.last?.upperBound ?? text.endIndex)
+            }
+            let from = characters.distance(from: characters.startIndex, to: lower)
+            let to = characters.distance(from: characters.startIndex, to: upper)
+            let paragraph = Paragraphs.bounds(in: String(characters), from: from, to: to)
+            guard !paragraph.isEmpty else { return }
+            let start = characters.index(characters.startIndex, offsetBy: paragraph.lowerBound)
+            let end = characters.index(characters.startIndex, offsetBy: paragraph.upperBound)
+            text[start..<end][HeadingLevelAttribute.self] = turnOn ? 1 : nil
+            text[start..<end][FontKey.self] = turnOn ? fonts.heading : nil
+            // Indices don't survive the change, so put the selection back by offset.
+            let newLower = text.characters.index(text.characters.startIndex, offsetBy: from)
+            if from == to {
+                selection = AttributedTextSelection(insertionPoint: newLower)
+            } else {
+                let newUpper = text.characters.index(text.characters.startIndex, offsetBy: to)
+                selection = AttributedTextSelection(range: newLower..<newUpper)
             }
         }
     }
