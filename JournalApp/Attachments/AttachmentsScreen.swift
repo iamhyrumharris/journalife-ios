@@ -78,9 +78,12 @@ struct AttachmentsScreen: View {
         .solidNavigationHeader()
         .tabRootToolbar(title: "Attachments")
         .fullScreenCover(item: $viewerStart) { start in
-            MediaViewer(items: viewerItems(around: start), startAt: start.id) { reference in
-                goToEntry(of: reference)
-            }
+            MediaViewer(
+                items: viewerItems(around: start),
+                startAt: start.id,
+                onGoToEntry: { goToEntry(of: $0) },
+                onRemove: { remove($0) }
+            )
             .navigationTransition(.zoom(sourceID: start.id, in: viewerZoom))
         }
         .onAppear {
@@ -113,6 +116,11 @@ struct AttachmentsScreen: View {
     private func goToEntry(of reference: MediaReference) {
         guard let item = items.first(where: { $0.id == reference.id }) else { return }
         app.router.push(.entry(item.entryID))
+    }
+
+    private func remove(_ reference: MediaReference) {
+        guard let attachment = app.stores.attachments.attachment(id: reference.id) else { return }
+        app.stores.attachments.remove(attachment)
     }
 
     /// Floating glass filter bar above the tab bar.

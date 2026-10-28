@@ -138,7 +138,8 @@ struct EntryEditorContent: View {
             }
             .fullScreenCover(item: $viewerStart) { start in
                 // Photos and videos swipe among themselves; recordings and files among theirs.
-                MediaViewer(items: start.kind.isVisual ? collageItems : otherMedia, startAt: start.id)
+                MediaViewer(items: start.kind.isVisual ? collageItems : otherMedia, startAt: start.id,
+                            onRemove: { model.remove($0) })
             }
             .sheet(isPresented: $isShowingAllPhotos) { allPhotosSheet }
             .sheet(item: $sheet) { sheet in sheetContent(sheet) }
@@ -359,7 +360,8 @@ struct EntryEditorContent: View {
                 }
             }
             .fullScreenCover(item: $allPhotosViewerStart) { start in
-                MediaViewer(items: model.media.filter { $0.kind.isVisual }, startAt: start.id)
+                MediaViewer(items: model.media.filter { $0.kind.isVisual }, startAt: start.id,
+                            onRemove: { model.remove($0) })
             }
         }
     }

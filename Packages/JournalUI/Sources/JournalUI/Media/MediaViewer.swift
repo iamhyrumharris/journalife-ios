@@ -8,17 +8,26 @@ import AVKit
 
 /// Full-screen viewer that swipes between an entry's media.
 public struct MediaViewer: View {
-    let items: [MediaReference]
+    @State private var items: [MediaReference]
     @State private var selection: UUID
+    @State private var pendingRemoval: MediaReference?
     var onGoToEntry: ((MediaReference) -> Void)?
+    /// When set, the toolbar has a Remove button. The viewer drops the item and shows the next one.
+    var onRemove: ((MediaReference) -> Void)?
 
     @Environment(\.dismiss) private var dismiss
     @Environment(\.storageLocation) private var location
 
-    public init(items: [MediaReference], startAt: UUID, onGoToEntry: ((MediaReference) -> Void)? = nil) {
-        self.items = items
+    public init(
+        items: [MediaReference],
+        startAt: UUID,
+        onGoToEntry: ((MediaReference) -> Void)? = nil,
+        onRemove: ((MediaReference) -> Void)? = nil
+    ) {
+        self._items = State(initialValue: items)
         self._selection = State(initialValue: startAt)
         self.onGoToEntry = onGoToEntry
+        self.onRemove = onRemove
     }
 
     public var body: some View {
@@ -44,6 +53,13 @@ public struct MediaViewer: View {
                         ShareLink(item: location.originalURL(id: current.id, fileExtension: current.fileExtension))
                     }
                 }
+                if onRemove != nil, let current {
+                    ToolbarItem(placement: .primaryAction) {
+                        Button(role: .destructive) { pendingRemoval = current } label: {
+                            Label { Text("Remove", bundle: .module) } icon: { Image(systemName: "trash") }
+                        }
+                    }
+                }
                 if let onGoToEntry, let current {
                     ToolbarItem(placement: Self.goToEntryPlacement) {
                         Button {
@@ -55,11 +71,25 @@ public struct MediaViewer: View {
                     }
                 }
             }
+            .removalConfirmation($pendingRemoval) { remove($0) }
         }
         .preferredColorScheme(.dark)
     }
 
     private var current: MediaReference? { items.first { $0.id == selection } }
+
+    /// Removes the item and moves on to the one after it (or before, at the end), closing
+    /// the viewer when nothing is left.
+    private func remove(_ item: MediaReference) {
+        guard let index = items.firstIndex(where: { $0.id == item.id }) else { return }
+        onRemove?(item)
+        items.remove(at: index)
+        if items.isEmpty {
+            dismiss()
+        } else {
+            selection = items[min(index, items.count - 1)].id
+        }
+    }
 
     private static var goToEntryPlacement: ToolbarItemPlacement {
         #if os(iOS)
