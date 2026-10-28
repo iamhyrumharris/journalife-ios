@@ -1,7 +1,8 @@
 # Journalife
 
 A native SwiftUI journal for iPhone (iOS 26, Swift 6). Phase 1 recreates Diarium's core:
-write, find and back up entries. See the spec for the full plan.
+write, find and back up entries. Phase 2 adds the Map and Attachments tabs, voice memos, file
+attachments, On This Day and daily reminders. See the spec for the full plan.
 
 ## Open and run
 
@@ -17,7 +18,7 @@ adds 1,000 entries over 3 years with photos. **Delete Sample Data** removes them
 ## Tests
 
 Product > Test (⌘U) runs the `JournalCoreTests` suite (stores, soft delete, search,
-archive round-trip, zip). From Terminal: `cd Packages/JournalCore && swift test`.
+archive round-trip, zip, On This Day, reminder planning, map pins). From Terminal: `cd Packages/JournalCore && swift test`.
 
 ## Layout
 
@@ -25,7 +26,7 @@ archive round-trip, zip). From Terminal: `cd Packages/JournalCore && swift test`
 | --- | --- |
 | `Packages/JournalCore` | Models, stores (`EntryStore`, `TagStore`, `AttachmentStore`), media storage and thumbnails, search, archive export/import, sample data. No UI; builds for iOS, macOS and watchOS. |
 | `Packages/JournalUI` | SwiftUI pieces the Mac app will reuse: entry rows, chips, rating, media strip and viewer, rich text bridge, named colors. |
-| `JournalApp` | The iPhone app: tabs and navigation, Calendar, Timeline, Day list, Search, entry editor, Settings, lock. |
+| `JournalApp` | The iPhone app: tabs and navigation, Calendar, Timeline, Day list, Map, Attachments, Search, On This Day, entry editor and voice recorder, Settings, reminders, lock. |
 | `Config` | `Identity.xcconfig` (name and IDs), `Info.plist` additions, entitlements. |
 | `docs` | The archive format. |
 
@@ -47,6 +48,20 @@ The main ones:
 - Importing an archive merges by UUID with last-writer-wins on `modifiedAt`. A tag with the same
   name as an existing one merges into it.
 
-## Phase 1 status
+- The map wraps `MKMapView` for its built-in pin clustering. Tapping a cluster zooms in; a cluster
+  that can't split (entries written at the same spot) opens a list of its entries.
+- Voice memos are AAC `.m4a` files (44.1 kHz mono). Recording starts as soon as the recorder opens.
+- With "Remind Even If I've Written" off, the next 30 days of reminders are scheduled one by one,
+  skipping today once there's an entry, so opening the app at least once a month keeps them coming.
 
-Map and Attachments tabs show a "coming soon" screen. Audio and file attachments are Phase 2.
+## Phase 2 status
+
+- **Map:** every entry with a location as a photo pin, clustered, fit to all pins on open.
+  The ••• menu has Show All Entries and Standard or Satellite.
+- **Attachments:** every photo, video, recording and file, newest first, with the
+  All / Photos / Videos / Audio / Files bar. Tap for the full-screen viewer and Go to entry.
+- **Editor:** Add Audio records a voice memo, Add File attaches any file (with Quick Look),
+  and the camera takes videos as well as photos.
+- **On This Day:** from the Calendar and Timeline ••• menus, and a row at the top of Timeline
+  when past years have entries on today's date. `journal://onthisday` opens it too.
+- **Reminders:** Settings > Reminders. Tapping the reminder starts a new entry.

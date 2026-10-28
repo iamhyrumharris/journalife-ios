@@ -62,7 +62,7 @@ struct EntryListRow: View {
                 if let entry = app.stores.entries.entry(id: row.id) { app.stores.entries.softDelete(entry) }
             }
         } message: {
-            Text("Its photos and videos are deleted too.")
+            Text("Its photos, videos, recordings and files are deleted too.")
         }
     }
 }

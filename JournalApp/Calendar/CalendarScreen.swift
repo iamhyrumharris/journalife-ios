@@ -61,6 +61,11 @@ struct CalendarScreen: View {
             } label: {
                 Label("Jump to Date…", systemImage: "calendar.badge.magnifyingglass")
             }
+            Button {
+                app.router.push(.onThisDay(.today))
+            } label: {
+                Label("On This Day", systemImage: "clock.arrow.circlepath")
+            }
         }
         .onAppear {
             isVisible = true

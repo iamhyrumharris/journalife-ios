@@ -13,6 +13,12 @@ enum AppSettings {
     static let autoLockDelay = "security.autoLockDelay"
     static let recentSearches = "search.recent"
     static let timelineNewestFirst = "timeline.newestFirst"
+    static let mapStyle = "map.style"
+    static let attachmentsFilter = "attachments.filter"
+    static let reminderEnabled = "reminders.enabled"
+    /// Minutes after midnight.
+    static let reminderTime = "reminders.time"
+    static let reminderOnWrittenDays = "reminders.onWrittenDays"
 }
 
 enum AppTheme: String, CaseIterable, Identifiable {

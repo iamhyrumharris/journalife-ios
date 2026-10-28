@@ -1,5 +1,6 @@
 import ImageIO
 import JournalCore
+import QuickLook
 import SwiftUI
 #if canImport(AVKit)
 import AVKit
@@ -37,7 +38,8 @@ public struct MediaViewer: View {
                 ToolbarItem(placement: .cancellationAction) {
                     Button { dismiss() } label: { Label { Text("Close", bundle: .module) } icon: { Image(systemName: "xmark") } }
                 }
-                if let current, let location {
+                // Audio and files share a copy named after the original from their own page.
+                if let current, current.kind.isVisual, let location {
                     ToolbarItem(placement: .primaryAction) {
                         ShareLink(item: location.originalURL(id: current.id, fileExtension: current.fileExtension))
                     }
@@ -84,17 +86,14 @@ private struct MediaPage: View {
                 #else
                 FileTileContent(systemImage: "video", name: reference.originalFilename)
                 #endif
-            case .audio, .file:
-                VStack(spacing: 16) {
-                    Image(systemName: reference.kind == .audio ? "waveform" : "doc")
-                        .font(.system(size: 64))
-                        .foregroundStyle(.secondary)
-                    Text(reference.originalFilename ?? url.lastPathComponent)
-                        .font(.headline)
-                    ShareLink(item: url) { Text("Open in…", bundle: .module) }
-                        .buttonStyle(.bordered)
-                }
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
+            case .audio:
+                AudioPlayerView(url: url, title: reference.originalFilename)
+                    .overlay(alignment: .bottom) {
+                        NamedShareButton(reference: reference, url: url)
+                            .padding(.bottom, 60)
+                    }
+            case .file:
+                FilePage(reference: reference, url: url)
             }
         } else {
             Color.black
@@ -168,3 +167,87 @@ private struct VideoPage: View {
     }
 }
 #endif
+
+/// A file attachment: its name and size, a Quick Look preview, and Open In.
+private struct FilePage: View {
+    let reference: MediaReference
+    let url: URL
+
+    @State private var previewURL: URL?
+    @State private var namedURL: URL?
+
+    var body: some View {
+        VStack(spacing: 16) {
+            Image(systemName: AttachmentGridTile.fileSymbol(for: reference.fileExtension))
+                .font(.system(size: 64))
+                .foregroundStyle(.secondary)
+            Text(reference.originalFilename ?? url.lastPathComponent)
+                .font(.headline)
+                .multilineTextAlignment(.center)
+                .padding(.horizontal)
+            if let size = try? url.resourceValues(forKeys: [.fileSizeKey]).fileSize {
+                Text(Int64(size).formatted(.byteCount(style: .file)))
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+            }
+            HStack(spacing: 12) {
+                Button {
+                    previewURL = namedURL ?? url
+                } label: {
+                    Label { Text("Preview", bundle: .module) } icon: { Image(systemName: "eye") }
+                }
+                .buttonStyle(.borderedProminent)
+                NamedShareButton(reference: reference, url: url)
+            }
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .quickLookPreview($previewURL)
+        .task(id: url) { namedURL = await NamedFileCopy.prepare(reference: reference, original: url) }
+    }
+}
+
+/// Shares a copy of the file named after the original ("Report.pdf"), not the
+/// journal's internal name.
+private struct NamedShareButton: View {
+    let reference: MediaReference
+    let url: URL
+
+    @State private var namedURL: URL?
+
+    var body: some View {
+        ShareLink(item: namedURL ?? url) {
+            Label { Text("Open in…", bundle: .module) } icon: { Image(systemName: "square.and.arrow.up") }
+        }
+        .buttonStyle(.bordered)
+        .task(id: url) { namedURL = await NamedFileCopy.prepare(reference: reference, original: url) }
+    }
+}
+
+enum NamedFileCopy {
+    /// A link (or copy) of the original in a temporary folder, under its original file name.
+    nonisolated static func prepare(reference: MediaReference, original: URL) async -> URL? {
+        guard let name = reference.originalFilename, !name.isEmpty else { return nil }
+        return await Task.detached(priority: .userInitiated) { () -> URL? in
+            let fm = FileManager.default
+            let folder = URL.temporaryDirectory.appending(path: "Shared/\(reference.id.uuidString)", directoryHint: .isDirectory)
+            // Keep the original's extension so other apps know what it is.
+            var fileName = (name as NSString).lastPathComponent
+            if !reference.fileExtension.isEmpty, (fileName as NSString).pathExtension.lowercased() != reference.fileExtension.lowercased() {
+                fileName += ".\(reference.fileExtension)"
+            }
+            let destination = folder.appending(path: fileName)
+            if fm.fileExists(atPath: destination.path) { return destination }
+            do {
+                try fm.createDirectory(at: folder, withIntermediateDirectories: true)
+                do {
+                    try fm.linkItem(at: original, to: destination)
+                } catch {
+                    try fm.copyItem(at: original, to: destination)
+                }
+                return destination
+            } catch {
+                return nil
+            }
+        }.value
+    }
+}

@@ -54,7 +54,7 @@ struct EntryEditorScreen: View {
 private enum EditorField: Hashable { case title, body }
 
 private enum EditorSheet: String, Identifiable {
-    case tags, rating, location, date, info
+    case tags, rating, location, date, info, recorder
     var id: String { rawValue }
 }
 
@@ -81,7 +81,7 @@ struct EntryEditorContent: View {
     @State private var viewerStart: MediaReference?
     @State private var isShowingAllPhotos = false
     @State private var allPhotosViewerStart: MediaReference?
-    @State private var comingSoon: LocalizedStringResource?
+    @State private var isShowingFileImporter = false
     @State private var permissionMessage: LocalizedStringResource?
 
     /// Body and heading fonts at the chosen Text Size, scaled with Dynamic Type.
@@ -99,11 +99,6 @@ struct EntryEditorContent: View {
             .allowsHitTesting(!app.router.isLeavingEntry)
             .onChange(of: app.router.isLeavingEntry) { _, isLeaving in
                 if isLeaving { focus = nil }
-            }
-            .alert("Coming in the next update", isPresented: Binding(get: { comingSoon != nil }, set: { if !$0 { comingSoon = nil } })) {
-                Button("OK", role: .cancel) {}
-            } message: {
-                if let comingSoon { Text(comingSoon) }
             }
             .alert("Permission needed", isPresented: Binding(get: { permissionMessage != nil }, set: { if !$0 { permissionMessage = nil } })) {
                 Button("Open Settings") { openAppSettings() }
@@ -127,18 +122,30 @@ struct EntryEditorContent: View {
                 Task { await model.importPicked(items) }
             }
             .fullScreenCover(isPresented: $isShowingCamera) {
-                CameraPicker { data in Task { await model.importCameraPhoto(data) } }
-                    .ignoresSafeArea()
+                CameraPicker { capture in
+                    switch capture {
+                    case .photo(let data): Task { await model.importCameraPhoto(data) }
+                    case .video(let url): Task { await model.importCameraVideo(url) }
+                    }
+                }
+                .ignoresSafeArea()
+            }
+            .fileImporter(isPresented: $isShowingFileImporter, allowedContentTypes: [.item], allowsMultipleSelection: true) { result in
+                switch result {
+                case .success(let urls): Task { await model.importFiles(urls) }
+                case .failure(let error): model.errorMessage = error.localizedDescription
+                }
             }
             .fullScreenCover(item: $viewerStart) { start in
-                MediaViewer(items: collageItems, startAt: start.id)
+                // Photos and videos swipe among themselves; recordings and files among theirs.
+                MediaViewer(items: start.kind.isVisual ? collageItems : otherMedia, startAt: start.id)
             }
             .sheet(isPresented: $isShowingAllPhotos) { allPhotosSheet }
             .sheet(item: $sheet) { sheet in sheetContent(sheet) }
             .confirmationDialog("Delete this entry?", isPresented: $isConfirmingDelete, titleVisibility: .visible) {
                 Button("Delete Entry", role: .destructive) { model.delete() }
             } message: {
-                Text("Its photos and videos are deleted too.")
+                Text("Its photos, videos, recordings and files are deleted too.")
             }
             .confirmationDialog(
                 "Use the photo's location?",
@@ -213,6 +220,7 @@ struct EntryEditorContent: View {
             }
             .sensoryFeedback(.impact(weight: .light), trigger: entry?.rating)
             .sensoryFeedback(.impact(weight: .light), trigger: entry?.liveTags.count)
+            .sensoryFeedback(.success, trigger: model.recordingsSaved)
     }
 
     /// Photos and videos, the cover first and the rest in the entry's order.
@@ -220,6 +228,11 @@ struct EntryEditorContent: View {
         let visual = model.media.filter { $0.kind.isVisual }
         guard let coverID = entry?.coverAttachment?.id, let cover = visual.first(where: { $0.id == coverID }) else { return visual }
         return [cover] + visual.filter { $0.id != coverID }
+    }
+
+    /// Recordings and files, which show in the strip under the text.
+    private var otherMedia: [MediaReference] {
+        model.media.filter { !$0.kind.isVisual }
     }
 
     /// Moves a photo to a position counted among the photos only (the All Photos grid's order).
@@ -310,7 +323,6 @@ struct EntryEditorContent: View {
 
             chipsRow
             // Photos and videos are in the collage; other attachments (audio, files) stay here.
-            let otherMedia = model.media.filter { !$0.kind.isVisual }
             if !otherMedia.isEmpty {
                 MediaStrip(
                     items: otherMedia,
@@ -545,9 +557,16 @@ struct EntryEditorContent: View {
         case .rating:
             sheet = .rating
         case .audio:
-            comingSoon = "Voice memos arrive in the next update."
+            Task {
+                switch await AudioRecorder.requestPermission() {
+                case .granted:
+                    sheet = .recorder
+                case .denied:
+                    permissionMessage = "Microphone access is off for this app. Turn it on in Settings to record voice memos."
+                }
+            }
         case .file:
-            comingSoon = "File attachments arrive in the next update."
+            isShowingFileImporter = true
         case .location:
             sheet = .location
         }
@@ -572,6 +591,10 @@ struct EntryEditorContent: View {
                 EntryDateSheet(date: entry.entryDate, timeZone: entry.timeZone) { model.setDate($0) }
             case .info:
                 EntryInfoSheet(entry: entry)
+            case .recorder:
+                AudioRecorderSheet { url, startedAt in
+                    Task { await model.importRecording(url, startedAt: startedAt) }
+                }
             }
         }
     }

@@ -228,6 +228,7 @@
 				INFOPLIST_KEY_NSCameraUsageDescription = "Take photos to add to your journal entries.";
 				INFOPLIST_KEY_NSFaceIDUsageDescription = "Unlock your journal with Face ID.";
 				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "Tag where you wrote an entry.";
+				INFOPLIST_KEY_NSMicrophoneUsageDescription = "Record voice memos and videos for your journal entries.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
@@ -267,6 +268,7 @@
 				INFOPLIST_KEY_NSCameraUsageDescription = "Take photos to add to your journal entries.";
 				INFOPLIST_KEY_NSFaceIDUsageDescription = "Unlock your journal with Face ID.";
 				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "Tag where you wrote an entry.";
+				INFOPLIST_KEY_NSMicrophoneUsageDescription = "Record voice memos and videos for your journal entries.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;

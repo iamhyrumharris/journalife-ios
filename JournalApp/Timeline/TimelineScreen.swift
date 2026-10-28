@@ -9,11 +9,17 @@ struct TimelineScreen: View {
     @State private var tagFilter: UUID?
     @State private var sections: [MonthSection] = []
     @State private var tags: [JournalCore.Tag] = []
+    @State private var onThisDayCount = 0
     @State private var isVisible = false
     @State private var isStale = true
 
     var body: some View {
         List {
+            if onThisDayCount > 0 && tagFilter == nil {
+                Section {
+                    onThisDayRow
+                }
+            }
             ForEach(sections) { section in
                 Section {
                     ForEach(section.rows) { row in
@@ -57,6 +63,11 @@ struct TimelineScreen: View {
                 Label("Sort", systemImage: "arrow.up.arrow.down")
             }
             .pickerStyle(.menu)
+            Button {
+                app.router.push(.onThisDay(.today))
+            } label: {
+                Label("On This Day", systemImage: "clock.arrow.circlepath")
+            }
             Picker(selection: $tagFilter) {
                 Text("All Entries").tag(UUID?.none)
                 ForEach(tags) { tag in
@@ -85,7 +96,29 @@ struct TimelineScreen: View {
         var entries = app.stores.entries.allEntries(newestFirst: newestFirst)
         if let tagFilter { entries = entries.filter { $0.liveTags.contains { $0.id == tagFilter } } }
         sections = MonthSection.group(entries.map(EntryRowData.init))
+        onThisDayCount = app.stores.entries.entriesOnThisDay(.today).count
         isStale = false
+    }
+
+    /// Entries from today's date in past years, shown above the list when there are any.
+    private var onThisDayRow: some View {
+        NavigationLink(value: AppRoute.onThisDay(.today)) {
+            Label {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("On This Day")
+                        .font(.headline)
+                    Text("^[\(onThisDayCount) entry](inflect: true) from past years")
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                }
+            } icon: {
+                Image(systemName: "clock.arrow.circlepath")
+                    .font(.title3)
+                    .foregroundStyle(.tint)
+            }
+            .padding(.vertical, 4)
+        }
+        .listRowBackground(JournalColors.background)
     }
 }
 

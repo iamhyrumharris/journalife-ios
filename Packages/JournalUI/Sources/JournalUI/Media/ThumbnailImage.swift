@@ -80,7 +80,11 @@ public struct MediaTile: View {
                                 .padding(5)
                         }
                 case .audio:
-                    FileTileContent(systemImage: "mic.fill", name: reference.originalFilename)
+                    // The length says more about a recording than its name does on a small tile.
+                    FileTileContent(
+                        systemImage: "mic.fill",
+                        name: reference.duration.map { Duration.seconds($0).formatted(.time(pattern: .minuteSecond)) } ?? reference.originalFilename
+                    )
                 case .file:
                     FileTileContent(systemImage: "doc.fill", name: reference.originalFilename)
                 }
