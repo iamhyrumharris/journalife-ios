@@ -5,7 +5,7 @@ public enum JournalColors {
     /// True black in dark mode, system grouped background in light mode.
     public static let background = Color("JournalBackground", bundle: .module)
     /// The page-color tint laid over the blur in `HeaderBackground`.
-    public static let headerTint = background.opacity(0.85)
+    public static let headerTint = background.opacity(0.55)
     /// Rows and cards (#1C1C1E in dark mode).
     public static let card = Color("JournalCard", bundle: .module)
     /// Calendar days without entries.
@@ -75,7 +75,7 @@ public struct HeaderBackground: View {
 
     public var body: some View {
         Rectangle()
-            .fill(.regularMaterial)
+            .fill(.ultraThinMaterial)
             .overlay(JournalColors.headerTint)
     }
 }
