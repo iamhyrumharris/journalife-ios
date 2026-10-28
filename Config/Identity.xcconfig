@@ -1,0 +1,10 @@
+// The app's identity. Change these four values in one place.
+//
+// PRODUCT_BUNDLE_IDENTIFIER and APP_GROUP_ID must be unique to your Apple Developer account.
+// After changing them, open the JournalApp target > Signing & Capabilities and pick your team,
+// and Xcode registers the App Group for you.
+
+APP_DISPLAY_NAME = Journalife
+PRODUCT_BUNDLE_IDENTIFIER = com.iamhyrumharris.journalife
+APP_GROUP_ID = group.com.iamhyrumharris.journalife
+DEVELOPMENT_TEAM =
