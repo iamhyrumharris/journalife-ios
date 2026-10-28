@@ -9,6 +9,7 @@ struct SearchScreen: View {
     @State private var query = SearchQuery()
     @State private var results: [EntryRowData] = []
     @State private var tags: [JournalCore.Tag] = []
+    @State private var topTags: [JournalCore.Tag] = []
     @State private var isFieldFocused = false
     @State private var isShowingDateRange = false
 
@@ -28,6 +29,16 @@ struct SearchScreen: View {
             }
 
             if query.isEmpty {
+                if !topTags.isEmpty {
+                    Section {
+                        topTagsRow
+                            .listRowInsets(EdgeInsets())
+                            .listRowBackground(JournalColors.background)
+                            .listRowSeparator(.hidden)
+                    } header: {
+                        Text("Tags")
+                    }
+                }
                 if recentSearches.isEmpty {
                     emptyState
                         .listRowBackground(JournalColors.background)
@@ -73,13 +84,17 @@ struct SearchScreen: View {
         .tabRootToolbar(title: "Search")
         .onAppear {
             tags = app.stores.tags.allTags()
+            topTags = app.stores.tags.mostUsedTags()
             isFieldFocused = true
         }
         // Opening a result remembers the search. A tap gesture on the rows did this before,
         // but it swallowed the NavigationLink tap, so results couldn't be opened.
         .onDisappear { if !query.text.isEmpty && !results.isEmpty { remember(query.text) } }
         .task(id: query) { await runSearch() }
-        .onChange(of: app.stores.changes.revision) { Task { await runSearch(debounce: false) } }
+        .onChange(of: app.stores.changes.revision) {
+            topTags = app.stores.tags.mostUsedTags()
+            Task { await runSearch(debounce: false) }
+        }
         .sheet(isPresented: $isShowingDateRange) {
             DateRangeSheet(range: $query.dateRange)
         }
@@ -112,6 +127,25 @@ struct SearchScreen: View {
             Text("Find words anywhere in titles and entries. Capitals and accents don't matter. Use the filters to narrow by tag, rating, date, media, location or favorites.")
         }
         .padding(.top, 40)
+    }
+
+    // MARK: Tags
+
+    // DECISION: the empty search page offers your most-used tags (up to 12) as one-tap filters,
+    // the journal's version of a "Trending" row. Tapping one filters by it, the same as the Tags
+    // chip above; the row hides while a search is showing.
+    private var topTagsRow: some View {
+        ScrollView(.horizontal) {
+            HStack(spacing: 8) {
+                ForEach(topTags) { tag in
+                    Button { query.tagIDs = [tag.id] } label: { TagChip(tag) }
+                        .buttonStyle(.plain)
+                }
+            }
+            .padding(.horizontal)
+            .padding(.vertical, 4)
+        }
+        .scrollIndicators(.hidden)
     }
 
     // MARK: Filters

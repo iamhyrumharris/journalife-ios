@@ -112,6 +112,16 @@ public final class TagStore {
         save(context, changes)
     }
 
+    /// Tags that are on at least one live entry, most used first (then in the manual order).
+    public func mostUsedTags(limit: Int = 12) -> [Tag] {
+        let counted = allTags().enumerated().map { (offset: $0.offset, tag: $0.element, uses: usageCount($0.element)) }
+        return counted
+            .filter { $0.uses > 0 }
+            .sorted { $0.uses != $1.uses ? $0.uses > $1.uses : $0.offset < $1.offset }
+            .prefix(limit)
+            .map(\.tag)
+    }
+
     /// How many live entries use the tag.
     public func usageCount(_ tag: Tag) -> Int { tag.liveEntries.count }
 }
