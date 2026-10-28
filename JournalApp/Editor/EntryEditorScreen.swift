@@ -19,6 +19,7 @@ struct EntryEditorScreen: View {
     @Environment(\.entryTextSize) private var textSize
     @ScaledMetric(relativeTo: .body) private var textScale: CGFloat = 1
     @State private var model: EntryEditorModel?
+    @State private var isKeyboardShown = false
 
     var body: some View {
         Group {
@@ -33,8 +34,9 @@ struct EntryEditorScreen: View {
         // DECISION: the page ignores the tab bar's safe area and keeps just the home indicator's.
         // A back swipe shows the tab bar while it runs; when the swipe was cancelled, SwiftUI
         // hides it again a moment later, and for one frame the bar's height reached this page and
-        // lifted the action grid. The keyboard's safe area still applies.
-        .safeAreaPadding(.bottom, Self.homeIndicatorInset)
+        // lifted the action grid. The keyboard's safe area still applies, and already covers the
+        // home indicator, so the padding is dropped while the keyboard is up.
+        .safeAreaPadding(.bottom, isKeyboardShown ? 0 : Self.homeIndicatorInset)
         .ignoresSafeArea(.container, edges: .bottom)
         // Fill under the keyboard too, so its rounded top corners show the page color, not white.
         .background { JournalColors.background.ignoresSafeArea() }
@@ -44,6 +46,8 @@ struct EntryEditorScreen: View {
             }
         }
         .onDisappear { model?.viewDidDisappear() }
+        .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardWillShowNotification)) { _ in isKeyboardShown = true }
+        .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardWillHideNotification)) { _ in isKeyboardShown = false }
     }
 }
 
