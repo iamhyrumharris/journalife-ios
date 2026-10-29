@@ -16,9 +16,13 @@ public final class ThumbnailCache: @unchecked Sendable {
     private let cache = NSCache<NSString, CGImage>()
     private let location: StorageLocation
 
-    public init(location: StorageLocation, countLimit: Int = 600) {
+    public init(location: StorageLocation, countLimit: Int = 600, byteLimit: Int = 250 << 20) {
         self.location = location
         cache.countLimit = countLimit
+        // The Attachments grid shows 1024px previews, which are about 16 times the size of the
+        // calendar's 256px ones, so a count alone could hold gigabytes. 600 small previews
+        // fit well under this limit, so the calendar keeps everything it did before.
+        cache.totalCostLimit = byteLimit
     }
 
     public func cachedImage(id: UUID, size: ThumbnailSize) -> DecodedImage? {
@@ -32,7 +36,10 @@ public final class ThumbnailCache: @unchecked Sendable {
         let decoded = await Task.detached(priority: .userInitiated) {
             Self.decode(url)
         }.value
-        if let decoded { cache.setObject(decoded.cgImage, forKey: key(id, size)) }
+        if let decoded {
+            let image = decoded.cgImage
+            cache.setObject(image, forKey: key(id, size), cost: image.bytesPerRow * image.height)
+        }
         return decoded
     }
 

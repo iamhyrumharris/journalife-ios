@@ -8,7 +8,7 @@ enum EditorAction: String, CaseIterable, Identifiable {
     var title: LocalizedStringResource {
         switch self {
         case .photo: "Add Photo"
-        case .camera: "Take Photo"
+        case .camera: "Take Photo or Video"
         case .tags: "Add Tags"
         case .rating: "Add Rating"
         case .audio: "Add Audio"

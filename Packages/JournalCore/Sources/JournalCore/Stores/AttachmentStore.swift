@@ -19,12 +19,20 @@ public final class AttachmentStore {
         return (try? context.fetch(descriptor))?.first
     }
 
-    /// All live attachments of live entries, newest first. Used by the Attachments tab (Phase 2).
+    /// All live attachments of live entries, newest first. Used by the Attachments tab.
     public func allMedia(kind: AttachmentKind? = nil) -> [Attachment] {
         let descriptor = FetchDescriptor<Attachment>(predicate: #Predicate { $0.deletedAt == nil })
         return ((try? context.fetch(descriptor)) ?? [])
             .filter { $0.entry?.deletedAt == nil && $0.entry != nil && (kind == nil || $0.kind == kind) }
             .sorted { $0.displayDate > $1.displayDate }
+    }
+
+    /// Snapshots of `allMedia` for the Attachments tab: each tile's media, entry and date.
+    public func allItems(kind: AttachmentKind? = nil) -> [AttachmentItem] {
+        allMedia(kind: kind).compactMap { attachment in
+            guard let entry = attachment.entry else { return nil }
+            return AttachmentItem(reference: attachment.reference, entryID: entry.id, date: attachment.displayDate, timeZone: entry.timeZone)
+        }
     }
 
     /// Adds an already-imported file (see `MediaStorage.importFile`) to the end of the entry's media strip.

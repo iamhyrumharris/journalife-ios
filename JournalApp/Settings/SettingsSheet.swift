@@ -43,6 +43,8 @@ struct SettingsSheet: View {
                     Text("Calendar")
                 }
 
+                ReminderSettingsSection()
+
                 SecuritySettingsSection()
 
                 Section("Tags") {

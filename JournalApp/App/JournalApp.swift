@@ -75,6 +75,8 @@ struct AppRootView: View {
             .onChange(of: scenePhase) { _, phase in
                 app.lock.sceneDidChange(to: phase)
                 if phase == .background { app.flushEditors() }
+                // Skip today's reminder once something's written, and keep a month of them queued.
+                if phase == .background || phase == .active { app.rescheduleReminders() }
             }
     }
 }
