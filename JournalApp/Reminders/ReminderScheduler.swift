@@ -80,18 +80,32 @@ enum ReminderScheduler {
 }
 
 /// Shows reminders while the app is open and opens their link when one is tapped.
+// DECISION: the completion-handler versions, not the async ones. The async versions finish
+// on a background thread, and UIKit aborts when the tap's completion handler runs off the
+// main thread (crash logs from Oct 29: SIGABRT in -[UIApplication
+// _updateSnapshotAndStateRestorationWithAction:windowScene:]).
 final class NotificationResponder: NSObject, UNUserNotificationCenterDelegate {
     var onOpenLink: ((URL) -> Void)?
 
-    nonisolated func userNotificationCenter(_ center: UNUserNotificationCenter, willPresent notification: UNNotification) async -> UNNotificationPresentationOptions {
-        [.banner, .list, .sound]
+    nonisolated func userNotificationCenter(
+        _ center: UNUserNotificationCenter,
+        willPresent notification: UNNotification,
+        withCompletionHandler completionHandler: @escaping @Sendable (UNNotificationPresentationOptions) -> Void
+    ) {
+        completionHandler([.banner, .list, .sound])
     }
 
-    nonisolated func userNotificationCenter(_ center: UNUserNotificationCenter, didReceive response: UNNotificationResponse) async {
-        guard let link = response.notification.request.content.userInfo["link"] as? String,
-              let url = URL(string: link) else { return }
-        await MainActor.run {
-            self.onOpenLink?(url)
+    nonisolated func userNotificationCenter(
+        _ center: UNUserNotificationCenter,
+        didReceive response: UNNotificationResponse,
+        withCompletionHandler completionHandler: @escaping @Sendable () -> Void
+    ) {
+        let link = response.notification.request.content.userInfo["link"] as? String
+        Task { @MainActor in
+            if let link, let url = URL(string: link) {
+                self.onOpenLink?(url)
+            }
+            completionHandler()
         }
     }
 }
