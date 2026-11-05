@@ -25,6 +25,8 @@ public final class JournalStores {
     public let entries: EntryStore
     public let tags: TagStore
     public let attachments: AttachmentStore
+    /// Set by the sync layer so deletes and purges never lose a change other devices need.
+    public let syncHooks = SyncHooks()
 
     public init(container: ModelContainer, location: StorageLocation) {
         self.container = container
@@ -34,7 +36,7 @@ public final class JournalStores {
         self.changes = changes
         let media = MediaStorage(location: location)
         self.media = media
-        self.entries = EntryStore(context: context, changes: changes)
+        self.entries = EntryStore(context: context, changes: changes, hooks: syncHooks)
         self.tags = TagStore(context: context, changes: changes)
         self.attachments = AttachmentStore(context: context, changes: changes, media: media)
     }

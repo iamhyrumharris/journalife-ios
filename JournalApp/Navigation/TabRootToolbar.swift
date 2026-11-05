@@ -15,7 +15,9 @@ struct TabRootToolbar<MenuContent: View>: ViewModifier {
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItemGroup(placement: .topBarLeading) {
-                    // Sync status button goes here in Phase 3 (hidden until sync exists).
+                    if app.sync.isEnabled {
+                        SyncStatusButton()
+                    }
                     Button {
                         app.createEntry()
                     } label: {

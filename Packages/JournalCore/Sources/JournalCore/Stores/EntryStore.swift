@@ -5,10 +5,12 @@ import SwiftData
 public final class EntryStore {
     private let context: ModelContext
     private let changes: ChangeTracker
+    private let hooks: SyncHooks
 
-    init(context: ModelContext, changes: ChangeTracker) {
+    init(context: ModelContext, changes: ChangeTracker, hooks: SyncHooks) {
         self.context = context
         self.changes = changes
+        self.hooks = hooks
     }
 
     public enum Direction: Sendable { case previous, next }
@@ -232,14 +234,25 @@ public final class EntryStore {
 
     /// Removes a brand-new entry that never got any content. Returns true if it was removed.
     ///
-    /// DECISION: this is a hard delete, not a tombstone. The entry was never meaningful
-    /// and (before sync exists) never left the device, so there is nothing to sync away.
+    /// DECISION: this is a hard delete, not a tombstone, when the entry never left the device
+    /// (sync never sends empty drafts). An entry that was synced and then emptied is
+    /// soft-deleted instead, so the delete reaches other devices.
     @discardableResult
     public func discardIfEmpty(_ entry: Entry) -> Bool {
-        guard entry.isEmptyContent, entry.source == nil else { return false }
-        context.delete(entry)
+        guard entry.isEmptyContent, entry.source == nil, entry.deletedAt == nil else { return false }
+        discard(entry)
         save(context, changes)
         return true
+    }
+
+    private func discard(_ entry: Entry) {
+        if hooks.wasSynced(entry.id) {
+            let now = Date.now
+            entry.deletedAt = now
+            entry.modifiedAt = now
+        } else {
+            context.delete(entry)
+        }
     }
 
     /// Removes leftover empty entries, for example from a new entry the app was closed on.
@@ -248,7 +261,7 @@ public final class EntryStore {
     public func discardEmptyEntries() -> Int {
         let empties = allEntries().filter { $0.isEmptyContent && $0.source == nil }
         guard !empties.isEmpty else { return 0 }
-        for entry in empties { context.delete(entry) }
+        for entry in empties { discard(entry) }
         save(context, changes)
         return empties.count
     }
@@ -277,8 +290,8 @@ public final class EntryStore {
     /// their files can be deleted (see `JournalStores.purgeDeletedItems`).
     ///
     // DECISION: the spec planned purging only once sync exists. Hyrum chose to start now
-    // (2026-10-25) so deleted media stops using storage. When sync arrives, purge only
-    // tombstones that have been synced.
+    // (2026-10-25) so deleted media stops using storage. With sync on, a tombstone is kept
+    // until it has been sent (and its remote file removed), see `SyncHooks.mayPurge`.
     @discardableResult
     public func purgeTombstones(olderThan cutoff: Date) -> [MediaReference] {
         let sample = SampleDataGenerator.sourceName
@@ -288,18 +301,21 @@ public final class EntryStore {
         }
         var removed: [UUID: MediaReference] = [:]
         for attachment in fetch(FetchDescriptor<Attachment>(predicate: #Predicate { $0.deletedAt != nil }))
-        where isExpired(attachment.deletedAt, source: attachment.entry?.source) {
+        where isExpired(attachment.deletedAt, source: attachment.entry?.source)
+            && hooks.mayPurge(.attachment(attachment.id, entryID: attachment.entry?.id, entryModifiedAt: attachment.entry?.modifiedAt)) {
             removed[attachment.id] = attachment.reference
             context.delete(attachment)
         }
         for entry in fetch(FetchDescriptor<Entry>(predicate: #Predicate { $0.deletedAt != nil }))
-        where isExpired(entry.deletedAt, source: entry.source) {
+        where isExpired(entry.deletedAt, source: entry.source)
+            && hooks.mayPurge(.entry(entry.id, modifiedAt: entry.modifiedAt))
+            && (entry.attachments ?? []).allSatisfy({ hooks.mayPurge(.attachment($0.id, entryID: nil, entryModifiedAt: nil)) }) {
             // Deleting the entry cascades to all its attachments, so their files go too.
             for attachment in entry.attachments ?? [] { removed[attachment.id] = attachment.reference }
             context.delete(entry)
         }
         let tags = (try? context.fetch(FetchDescriptor<Tag>(predicate: #Predicate { $0.deletedAt != nil }))) ?? []
-        for tag in tags where isExpired(tag.deletedAt, source: nil) {
+        for tag in tags where isExpired(tag.deletedAt, source: nil) && hooks.mayPurge(.tag(tag.id, modifiedAt: tag.modifiedAt)) {
             context.delete(tag)
         }
         save(context, changes)

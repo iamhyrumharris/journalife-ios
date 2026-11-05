@@ -55,6 +55,8 @@ struct SettingsSheet: View {
                     }
                 }
 
+                SyncSettingsSection()
+
                 DataSettingsSection()
 
                 Section("About") {

@@ -16,6 +16,9 @@ struct JournalApp: App {
                 StoreErrorView(message: message)
             }
         }
+        .backgroundTask(.appRefresh(BackgroundSync.refreshIdentifier)) {
+            await BackgroundSync.run()
+        }
     }
 }
 
@@ -42,6 +45,8 @@ struct AppRootView: View {
     @AppStorage(AppSettings.serifBody) private var serifBody = false
     @AppStorage(AppSettings.textSize) private var textSize = EntryTextSize.large
     @AppStorage(AppSettings.timelineThumbnails) private var timelineThumbnails = false
+    /// Coming back from the background (not just from a sheet or Control Center) syncs.
+    @State private var scenePhaseWasBackground = false
 
     /// The lock screen while locked; otherwise, whenever locking is on and the app isn't active,
     /// a plain cover so the app switcher never shows entries.
@@ -72,9 +77,18 @@ struct AppRootView: View {
             // effect everywhere at once, including sheets and the lock window.
             .onChange(of: theme, initial: true) { _, theme in applyWindowStyle(theme) }
             .onOpenURL { app.handle(url: $0) }
+            // Sync on launch, on coming back, and a few seconds after edits.
+            .task { await app.sync.syncNow() }
+            .onChange(of: app.stores.changes.revision) { app.sync.scheduleSoon() }
             .onChange(of: scenePhase) { _, phase in
                 app.lock.sceneDidChange(to: phase)
-                if phase == .background { app.flushEditors() }
+                if phase == .background {
+                    app.flushEditors()
+                    BackgroundSync.finishInBackground(app.sync)
+                    BackgroundSync.schedule(enabled: app.sync.isEnabled)
+                }
+                if phase == .active, scenePhaseWasBackground { Task { await app.sync.syncNow() } }
+                if phase == .background { scenePhaseWasBackground = true } else if phase == .active { scenePhaseWasBackground = false }
                 // Skip today's reminder once something's written, and keep a month of them queued.
                 if phase == .background || phase == .active { app.rescheduleReminders() }
             }
