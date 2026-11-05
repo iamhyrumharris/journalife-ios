@@ -112,6 +112,25 @@ public final class EntryStore {
         return fetch(descriptor).first?.entryDate
     }
 
+    /// Every live entry with a location, as map pins with their cover photos.
+    public func mapPins() -> [MapPin] {
+        allEntries().compactMap { entry in
+            guard let latitude = entry.latitude, let longitude = entry.longitude,
+                  !(entry.isEmptyContent && entry.source == nil) else { return nil }
+            return MapPin(entryID: entry.id, latitude: latitude, longitude: longitude, cover: entry.coverAttachment?.reference)
+        }
+    }
+
+    /// Live entries from the same date in earlier years (see `OnThisDay.matches`), newest first.
+    public func entriesOnThisDay(_ day: DayKey) -> [Entry] {
+        allEntries().filter { OnThisDay.matches($0.dayKey, on: day) && !($0.isEmptyContent && $0.source == nil) }
+    }
+
+    /// True if any live entry with content falls on the day. Used to skip the daily reminder.
+    public func hasWrittenEntry(on day: DayKey) -> Bool {
+        entries(on: day).contains { !$0.isEmptyContent }
+    }
+
     // MARK: Search
 
     /// Full-text and filtered search over live entries, newest first.

@@ -18,19 +18,11 @@ struct RootTabView: View {
             }
 
             Tab("Map", systemImage: "map", value: AppTab.map) {
-                TabStack(tab: .map) {
-                    ComingSoonView(title: "Map is coming soon", systemImage: "map",
-                                   message: "Entries with a location will show up here as pins in the next update.")
-                        .tabRootToolbar(title: "Map")
-                }
+                TabStack(tab: .map) { MapScreen() }
             }
 
             Tab("Attachments", systemImage: "square.grid.2x2", value: AppTab.attachments) {
-                TabStack(tab: .attachments) {
-                    ComingSoonView(title: "Attachments are coming soon", systemImage: "square.grid.2x2",
-                                   message: "Every photo, video, recording and file from your entries will show up here in the next update.")
-                        .tabRootToolbar(title: "Attachments")
-                }
+                TabStack(tab: .attachments) { AttachmentsScreen() }
             }
 
             Tab("Search", systemImage: "magnifyingglass", value: AppTab.search, role: .search) {
@@ -96,6 +88,9 @@ struct TabStack<Root: View>: View {
             DayListScreen(day: day)
                 .steadyBottomInset(tabBarInset)
                 .zoomTransition(from: source, in: zoom)
+        case .onThisDay(let day):
+            OnThisDayScreen(day: day)
+                .steadyBottomInset(tabBarInset)
         }
     }
 }

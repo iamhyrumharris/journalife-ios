@@ -10,6 +10,7 @@ public struct MediaStrip: View {
     var onMove: (MediaReference, Int) -> Void
     var onSetCover: (MediaReference) -> Void
     var onRemove: (MediaReference) -> Void
+    @State private var pendingRemoval: MediaReference?
 
     public init(
         items: [MediaReference],
@@ -57,7 +58,7 @@ public struct MediaStrip: View {
                         if item.kind.isVisual {
                             Button { onSetCover(item) } label: { Label { Text("Set as Cover", bundle: .module) } icon: { Image(systemName: "star") } }
                         }
-                        Button(role: .destructive) { onRemove(item) } label: { Label { Text("Remove", bundle: .module) } icon: { Image(systemName: "trash") } }
+                        Button(role: .destructive) { pendingRemoval = item } label: { Label { Text("Remove", bundle: .module) } icon: { Image(systemName: "trash") } }
                     }
                 }
             }
@@ -65,5 +66,6 @@ public struct MediaStrip: View {
         }
         .scrollIndicators(.hidden)
         .frame(height: 84)
+        .removalConfirmation($pendingRemoval, onRemove: onRemove)
     }
 }

@@ -2,6 +2,7 @@ import JournalCore
 import JournalUI
 import Observation
 import SwiftUI
+import UserNotifications
 
 /// App-wide state: the stores, navigation, the lock and the shared thumbnail cache.
 @MainActor
@@ -12,6 +13,8 @@ final class AppModel {
     let router = Router()
     let lock = AppLock()
     var isShowingSettings = false
+    /// Opens reminder links. Kept here because the notification center holds its delegate weakly.
+    @ObservationIgnored private let notificationResponder = NotificationResponder()
 
     /// Open editors, so their pending text can be saved before the app backgrounds.
     @ObservationIgnored private var editors: [UUID: WeakEditor] = [:]
@@ -22,6 +25,13 @@ final class AppModel {
         self.stores = stores
         self.thumbnails = ThumbnailCache(location: stores.location)
         router.onRoutesRemoved = { [weak self] routes in self?.routesRemoved(routes) }
+        notificationResponder.onOpenLink = { [weak self] url in self?.handle(url: url) }
+        UNUserNotificationCenter.current().delegate = notificationResponder
+    }
+
+    /// Brings the daily reminder up to date with the settings and today's entries.
+    func rescheduleReminders() {
+        Task { await ReminderScheduler.reschedule(stores: stores) }
     }
 
     /// The real journal, stored in the App Group container named in Info.plist.
@@ -32,6 +42,7 @@ final class AppModel {
         let model = AppModel(stores: stores)
         // Remove items deleted more than 30 days ago, and their files.
         Task { await stores.purgeDeletedItems() }
+        model.rescheduleReminders()
         return model
     }
 
@@ -58,6 +69,9 @@ final class AppModel {
         case .newEntry:
             isShowingSettings = false
             createEntry()
+        case .onThisDay:
+            isShowingSettings = false
+            router.push(.onThisDay(.today))
         case nil:
             break
         }
@@ -94,16 +108,20 @@ final class AppModel {
     }
 }
 
-/// `journal://entry/<uuid>` and `journal://new`, for widgets, the Watch and Shortcuts later.
+/// `journal://entry/<uuid>`, `journal://new` and `journal://onthisday`, for reminders, and for
+/// widgets, the Watch and Shortcuts later.
 enum DeepLink: Equatable {
     case entry(UUID)
     case newEntry
+    case onThisDay
 
     init?(url: URL) {
         guard url.scheme == "journal" else { return nil }
         switch url.host() {
         case "new":
             self = .newEntry
+        case "onthisday":
+            self = .onThisDay
         case "entry":
             guard let id = url.pathComponents.dropFirst().first.flatMap(UUID.init(uuidString:)) else { return nil }
             self = .entry(id)

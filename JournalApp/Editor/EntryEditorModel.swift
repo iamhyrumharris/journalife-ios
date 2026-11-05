@@ -23,6 +23,8 @@ final class EntryEditorModel {
     var selection = AttributedTextSelection()
 
     private(set) var isImporting = false
+    /// Goes up each time a recording is saved, for the haptic.
+    private(set) var recordingsSaved = 0
     var errorMessage: String?
     /// Set when the first photo carries a location and the entry has none, to offer using it.
     var photoLocationOffer: PhotoLocationOffer?
@@ -212,6 +214,51 @@ final class EntryEditorModel {
             add(try await stores.media.importData(data, fileExtension: "jpg", kind: .photo, originalFilename: "Camera.jpg"))
         } catch {
             errorMessage = error.localizedDescription
+        }
+    }
+
+    /// A video from the camera, already copied to a temporary file.
+    func importCameraVideo(_ url: URL) async {
+        isImporting = true
+        defer { isImporting = false }
+        do {
+            add(try await stores.media.importFile(at: url, kind: .video, originalFilename: "Camera.\(url.pathExtension)", move: true))
+        } catch {
+            errorMessage = error.localizedDescription
+        }
+    }
+
+    /// A finished voice memo from the recorder.
+    func importRecording(_ url: URL, startedAt: Date) async {
+        isImporting = true
+        defer { isImporting = false }
+        do {
+            let name = String(localized: "Recording \(startedAt.formatted(date: .abbreviated, time: .shortened))")
+            var imported = try await stores.media.importFile(at: url, kind: .audio, originalFilename: "\(name).m4a", move: true)
+            imported.capturedAt = imported.capturedAt ?? startedAt
+            add(imported)
+            recordingsSaved += 1
+        } catch {
+            errorMessage = error.localizedDescription
+        }
+    }
+
+    /// Files picked in the Files app. Any type is allowed; images and movies join the photos.
+    func importFiles(_ urls: [URL]) async {
+        guard entry != nil, !urls.isEmpty else { return }
+        isImporting = true
+        defer { isImporting = false }
+        var failures = 0
+        for url in urls {
+            do {
+                let copy = try await PickedFile.copyToTemporary(url)
+                add(try await stores.media.importFile(at: copy, originalFilename: url.lastPathComponent, move: true))
+            } catch {
+                failures += 1
+            }
+        }
+        if failures > 0 {
+            errorMessage = String(AttributedString(localized: "^[\(failures) file](inflect: true) couldn't be added.").characters)
         }
     }
 

@@ -149,16 +149,27 @@ private struct MediaActions: View {
     }
 }
 
-private extension View {
+extension View {
+    /// Asks before removing media from an entry. Shared by the collage, All Photos, the media
+    /// strip and the full-screen viewer.
     func removalConfirmation(_ pending: Binding<MediaReference?>, onRemove: @escaping (MediaReference) -> Void) -> some View {
         confirmationDialog(
-            Text("Remove this photo from the entry?", bundle: .module),
+            removalTitle(for: pending.wrappedValue?.kind),
             isPresented: Binding(get: { pending.wrappedValue != nil }, set: { if !$0 { pending.wrappedValue = nil } }),
             titleVisibility: .visible,
             presenting: pending.wrappedValue
         ) { item in
             Button(role: .destructive) { onRemove(item) } label: { Text("Remove", bundle: .module) }
         }
+    }
+}
+
+private func removalTitle(for kind: AttachmentKind?) -> Text {
+    switch kind {
+    case .video: Text("Remove this video from the entry?", bundle: .module)
+    case .audio: Text("Remove this recording from the entry?", bundle: .module)
+    case .file: Text("Remove this file from the entry?", bundle: .module)
+    case .photo, nil: Text("Remove this photo from the entry?", bundle: .module)
     }
 }
 

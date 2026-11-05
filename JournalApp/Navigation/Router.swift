@@ -10,6 +10,8 @@ enum AppTab: Hashable, CaseIterable {
 enum AppRoute: Hashable {
     case entry(UUID, zoomSource: String? = nil)
     case day(DayKey, zoomSource: String? = nil)
+    /// Entries from this date in earlier years.
+    case onThisDay(DayKey)
 }
 
 /// One navigation stack per tab.
@@ -32,10 +34,8 @@ final class Router {
         )
     }
 
-    /// Pushes onto the current tab. Map and Attachments are placeholders in Phase 1,
-    /// so pushes from there go to Timeline.
+    /// Pushes onto the current tab.
     func push(_ route: AppRoute) {
-        if selectedTab == .map || selectedTab == .attachments { selectedTab = .timeline }
         var path = paths[selectedTab, default: []]
         path.append(route)
         setPath(path, for: selectedTab)

@@ -1,5 +1,6 @@
 import ImageIO
 import JournalCore
+import QuickLook
 import SwiftUI
 #if canImport(AVKit)
 import AVKit
@@ -7,17 +8,26 @@ import AVKit
 
 /// Full-screen viewer that swipes between an entry's media.
 public struct MediaViewer: View {
-    let items: [MediaReference]
+    @State private var items: [MediaReference]
     @State private var selection: UUID
+    @State private var pendingRemoval: MediaReference?
     var onGoToEntry: ((MediaReference) -> Void)?
+    /// When set, the toolbar has a Remove button. The viewer drops the item and shows the next one.
+    var onRemove: ((MediaReference) -> Void)?
 
     @Environment(\.dismiss) private var dismiss
     @Environment(\.storageLocation) private var location
 
-    public init(items: [MediaReference], startAt: UUID, onGoToEntry: ((MediaReference) -> Void)? = nil) {
-        self.items = items
+    public init(
+        items: [MediaReference],
+        startAt: UUID,
+        onGoToEntry: ((MediaReference) -> Void)? = nil,
+        onRemove: ((MediaReference) -> Void)? = nil
+    ) {
+        self._items = State(initialValue: items)
         self._selection = State(initialValue: startAt)
         self.onGoToEntry = onGoToEntry
+        self.onRemove = onRemove
     }
 
     public var body: some View {
@@ -37,9 +47,17 @@ public struct MediaViewer: View {
                 ToolbarItem(placement: .cancellationAction) {
                     Button { dismiss() } label: { Label { Text("Close", bundle: .module) } icon: { Image(systemName: "xmark") } }
                 }
-                if let current, let location {
+                // Audio and files share a copy named after the original from their own page.
+                if let current, current.kind.isVisual, let location {
                     ToolbarItem(placement: .primaryAction) {
                         ShareLink(item: location.originalURL(id: current.id, fileExtension: current.fileExtension))
+                    }
+                }
+                if onRemove != nil, let current {
+                    ToolbarItem(placement: .primaryAction) {
+                        Button(role: .destructive) { pendingRemoval = current } label: {
+                            Label { Text("Remove", bundle: .module) } icon: { Image(systemName: "trash") }
+                        }
                     }
                 }
                 if let onGoToEntry, let current {
@@ -53,11 +71,25 @@ public struct MediaViewer: View {
                     }
                 }
             }
+            .removalConfirmation($pendingRemoval) { remove($0) }
         }
         .preferredColorScheme(.dark)
     }
 
     private var current: MediaReference? { items.first { $0.id == selection } }
+
+    /// Removes the item and moves on to the one after it (or before, at the end), closing
+    /// the viewer when nothing is left.
+    private func remove(_ item: MediaReference) {
+        guard let index = items.firstIndex(where: { $0.id == item.id }) else { return }
+        onRemove?(item)
+        items.remove(at: index)
+        if items.isEmpty {
+            dismiss()
+        } else {
+            selection = items[min(index, items.count - 1)].id
+        }
+    }
 
     private static var goToEntryPlacement: ToolbarItemPlacement {
         #if os(iOS)
@@ -84,17 +116,14 @@ private struct MediaPage: View {
                 #else
                 FileTileContent(systemImage: "video", name: reference.originalFilename)
                 #endif
-            case .audio, .file:
-                VStack(spacing: 16) {
-                    Image(systemName: reference.kind == .audio ? "waveform" : "doc")
-                        .font(.system(size: 64))
-                        .foregroundStyle(.secondary)
-                    Text(reference.originalFilename ?? url.lastPathComponent)
-                        .font(.headline)
-                    ShareLink(item: url) { Text("Open in…", bundle: .module) }
-                        .buttonStyle(.bordered)
-                }
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
+            case .audio:
+                AudioPlayerView(url: url, title: reference.originalFilename)
+                    .overlay(alignment: .bottom) {
+                        NamedShareButton(reference: reference, url: url)
+                            .padding(.bottom, 60)
+                    }
+            case .file:
+                FilePage(reference: reference, url: url)
             }
         } else {
             Color.black
@@ -168,3 +197,87 @@ private struct VideoPage: View {
     }
 }
 #endif
+
+/// A file attachment: its name and size, a Quick Look preview, and Open In.
+private struct FilePage: View {
+    let reference: MediaReference
+    let url: URL
+
+    @State private var previewURL: URL?
+    @State private var namedURL: URL?
+
+    var body: some View {
+        VStack(spacing: 16) {
+            Image(systemName: AttachmentGridTile.fileSymbol(for: reference.fileExtension))
+                .font(.system(size: 64))
+                .foregroundStyle(.secondary)
+            Text(reference.originalFilename ?? url.lastPathComponent)
+                .font(.headline)
+                .multilineTextAlignment(.center)
+                .padding(.horizontal)
+            if let size = try? url.resourceValues(forKeys: [.fileSizeKey]).fileSize {
+                Text(Int64(size).formatted(.byteCount(style: .file)))
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+            }
+            HStack(spacing: 12) {
+                Button {
+                    previewURL = namedURL ?? url
+                } label: {
+                    Label { Text("Preview", bundle: .module) } icon: { Image(systemName: "eye") }
+                }
+                .buttonStyle(.borderedProminent)
+                NamedShareButton(reference: reference, url: url)
+            }
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .quickLookPreview($previewURL)
+        .task(id: url) { namedURL = await NamedFileCopy.prepare(reference: reference, original: url) }
+    }
+}
+
+/// Shares a copy of the file named after the original ("Report.pdf"), not the
+/// journal's internal name.
+private struct NamedShareButton: View {
+    let reference: MediaReference
+    let url: URL
+
+    @State private var namedURL: URL?
+
+    var body: some View {
+        ShareLink(item: namedURL ?? url) {
+            Label { Text("Open in…", bundle: .module) } icon: { Image(systemName: "square.and.arrow.up") }
+        }
+        .buttonStyle(.bordered)
+        .task(id: url) { namedURL = await NamedFileCopy.prepare(reference: reference, original: url) }
+    }
+}
+
+enum NamedFileCopy {
+    /// A link (or copy) of the original in a temporary folder, under its original file name.
+    nonisolated static func prepare(reference: MediaReference, original: URL) async -> URL? {
+        guard let name = reference.originalFilename, !name.isEmpty else { return nil }
+        return await Task.detached(priority: .userInitiated) { () -> URL? in
+            let fm = FileManager.default
+            let folder = URL.temporaryDirectory.appending(path: "Shared/\(reference.id.uuidString)", directoryHint: .isDirectory)
+            // Keep the original's extension so other apps know what it is.
+            var fileName = (name as NSString).lastPathComponent
+            if !reference.fileExtension.isEmpty, (fileName as NSString).pathExtension.lowercased() != reference.fileExtension.lowercased() {
+                fileName += ".\(reference.fileExtension)"
+            }
+            let destination = folder.appending(path: fileName)
+            if fm.fileExists(atPath: destination.path) { return destination }
+            do {
+                try fm.createDirectory(at: folder, withIntermediateDirectories: true)
+                do {
+                    try fm.linkItem(at: original, to: destination)
+                } catch {
+                    try fm.copyItem(at: original, to: destination)
+                }
+                return destination
+            } catch {
+                return nil
+            }
+        }.value
+    }
+}
