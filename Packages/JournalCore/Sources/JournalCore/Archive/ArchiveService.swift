@@ -52,7 +52,7 @@ public actor ArchiveService {
         let encoder = ArchiveFormat.makeEncoder()
         let writer = try ZipWriter(url: url)
         try writer.addData(try encoder.encode(manifest), path: ArchiveFormat.manifestPath)
-        try writer.addData(try encoder.encode(tags.map(TagRecord.init)), path: ArchiveFormat.tagsPath)
+        try writer.addData(try encoder.encode(tags.map { TagRecord($0) }), path: ArchiveFormat.tagsPath)
         try writer.addData(try encoder.encode(entryRecords), path: ArchiveFormat.entriesPath)
         for file in files {
             try writer.addFile(at: file.source, path: file.path)

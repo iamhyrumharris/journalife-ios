@@ -5,6 +5,16 @@
 // and Xcode registers the App Group for you.
 
 APP_DISPLAY_NAME = Journalife
-PRODUCT_BUNDLE_IDENTIFIER = com.iamhyrumharris.journalife
-APP_GROUP_ID = group.com.iamhyrumharris.journalife
-DEVELOPMENT_TEAM =
+PRODUCT_BUNDLE_IDENTIFIER = com.ziatech.journalife
+APP_GROUP_ID = group.com.ziatech.journalife
+DEVELOPMENT_TEAM = 33RR68Y559
+
+// iCloud sync (Phase 3) needs a paid Apple Developer team: a free Personal Team can't use
+// CloudKit. Set ICLOUD_SYNC_ENABLED = YES once DEVELOPMENT_TEAM is a paid team, then build.
+// That switches to the entitlements file with the iCloud container, iCloud.<bundle id>.
+// WebDAV sync works either way.
+ICLOUD_SYNC_ENABLED = YES
+ICLOUD_CONTAINER_ID = iCloud.$(PRODUCT_BUNDLE_IDENTIFIER)
+JOURNAL_ENTITLEMENTS_NO = Config/JournalApp.entitlements
+JOURNAL_ENTITLEMENTS_YES = Config/JournalApp-iCloud.entitlements
+JOURNAL_ENTITLEMENTS = $(JOURNAL_ENTITLEMENTS_$(ICLOUD_SYNC_ENABLED))

@@ -12,6 +12,7 @@ final class AppModel {
     let thumbnails: ThumbnailCache
     let router = Router()
     let lock = AppLock()
+    let sync: SyncController
     var isShowingSettings = false
     /// Opens reminder links. Kept here because the notification center holds its delegate weakly.
     @ObservationIgnored private let notificationResponder = NotificationResponder()
@@ -21,10 +22,17 @@ final class AppModel {
     /// New entries that should open without focusing the title (see `createEntry`).
     @ObservationIgnored private(set) var unfocusedNewEntries: Set<UUID> = []
 
-    init(stores: JournalStores) {
+    /// The running app's model, for background refresh (which has no view to read it from).
+    private(set) static weak var current: AppModel?
+
+    init(stores: JournalStores, sync: SyncController? = nil) {
         self.stores = stores
         self.thumbnails = ThumbnailCache(location: stores.location)
+        self.sync = sync ?? SyncController(stores: stores, iCloudContainerIdentifier: nil, defaults: UserDefaults(suiteName: "preview") ?? .standard)
         router.onRoutesRemoved = { [weak self] routes in self?.routesRemoved(routes) }
+        self.sync.isEntryOpen = { [weak self] id in
+            self?.editors.values.contains { $0.model?.entry?.id == id } ?? false
+        }
         notificationResponder.onOpenLink = { [weak self] url in self?.handle(url: url) }
         UNUserNotificationCenter.current().delegate = notificationResponder
     }
@@ -38,12 +46,23 @@ final class AppModel {
     static func live() throws -> AppModel {
         let groupID = Bundle.main.object(forInfoDictionaryKey: "AppGroupIdentifier") as? String
         let stores = try JournalStores.live(appGroupIdentifier: groupID)
+        // Sync is set up first so its guards apply to the cleanup below.
+        let sync = SyncController(stores: stores, iCloudContainerIdentifier: Self.iCloudContainerIdentifier)
         stores.entries.discardEmptyEntries()
-        let model = AppModel(stores: stores)
+        let model = AppModel(stores: stores, sync: sync)
+        current = model
         // Remove items deleted more than 30 days ago, and their files.
         Task { await stores.purgeDeletedItems() }
         model.rescheduleReminders()
         return model
+    }
+
+    /// The CloudKit container, when this build is signed with iCloud (see Config/Identity.xcconfig).
+    private static var iCloudContainerIdentifier: String? {
+        guard (Bundle.main.object(forInfoDictionaryKey: "ICloudSyncEnabled") as? String)?.uppercased() == "YES",
+              let identifier = Bundle.main.object(forInfoDictionaryKey: "CloudKitContainerIdentifier") as? String,
+              !identifier.isEmpty else { return nil }
+        return identifier
     }
 
     // MARK: Entries
@@ -85,6 +104,8 @@ final class AppModel {
 
     func unregister(_ editor: EntryEditorModel) {
         editors[editor.routeEntryID] = nil
+        // Remote changes held back while this entry was open can come in now.
+        sync.scheduleSoon(force: true)
     }
 
     /// Saves pending text in every open editor. Called when the app backgrounds.

@@ -5,6 +5,26 @@
 	<!-- Read by AppModel to find the shared container for the journal. -->
 	<key>AppGroupIdentifier</key>
 	<string>$(APP_GROUP_ID)</string>
+	<!-- Read by AppModel: iCloud sync only runs when the build is signed for it (Identity.xcconfig). -->
+	<key>ICloudSyncEnabled</key>
+	<string>$(ICLOUD_SYNC_ENABLED)</string>
+	<key>CloudKitContainerIdentifier</key>
+	<string>$(ICLOUD_CONTAINER_ID)</string>
+	<!-- Background app refresh for sync (BackgroundSync.swift). -->
+	<key>BGTaskSchedulerPermittedIdentifiers</key>
+	<array>
+		<string>$(PRODUCT_BUNDLE_IDENTIFIER).sync</string>
+	</array>
+	<key>UIBackgroundModes</key>
+	<array>
+		<string>fetch</string>
+	</array>
+	<!-- WebDAV servers on the home network (a NAS) often use plain http or a self-made name. -->
+	<key>NSAppTransportSecurity</key>
+	<dict>
+		<key>NSAllowsLocalNetworking</key>
+		<true/>
+	</dict>
 	<!-- journal://entry/<uuid> and journal://new -->
 	<key>CFBundleURLTypes</key>
 	<array>

@@ -24,11 +24,11 @@ archive round-trip, zip, On This Day, reminder planning, map pins). From Termina
 
 | Folder | What lives there |
 | --- | --- |
-| `Packages/JournalCore` | Models, stores (`EntryStore`, `TagStore`, `AttachmentStore`), media storage and thumbnails, search, archive export/import, sample data. No UI; builds for iOS, macOS and watchOS. |
+| `Packages/JournalCore` | Models, stores (`EntryStore`, `TagStore`, `AttachmentStore`), media storage and thumbnails, search, archive export/import, sync (engine, iCloud and WebDAV providers), sample data. No UI; builds for iOS, macOS and watchOS. |
 | `Packages/JournalUI` | SwiftUI pieces the Mac app will reuse: entry rows, chips, rating, media strip and viewer, rich text bridge, named colors. |
 | `JournalApp` | The iPhone app: tabs and navigation, Calendar, Timeline, Day list, Map, Attachments, Search, On This Day, entry editor and voice recorder, Settings, reminders, lock. |
 | `Config` | `Identity.xcconfig` (name and IDs), `Info.plist` additions, entitlements. |
-| `docs` | The archive format. |
+| `docs` | The archive and sync formats. |
 
 Data lives in the App Group container under `Journal/`: `Database/Journal.store` (SwiftData),
 `Media/<xx>/<uuid>.<ext>` (originals) and `Thumbs/` (previews, excluded from device backup).
@@ -65,3 +65,15 @@ The main ones:
 - **On This Day:** from the Calendar and Timeline ••• menus, and a row at the top of Timeline
   when past years have entries on today's date. `journal://onthisday` opens it too.
 - **Reminders:** Settings > Reminders. Tapping the reminder starts a new entry.
+
+## Phase 3 status
+
+- **Sync:** Settings > Sync picks Off, iCloud or WebDAV. Sync runs on launch, when the app comes
+  back, a few seconds after edits, when it goes to the background, and in background app refresh.
+  A sync button at the top left of every tab shows progress and errors and has Sync Now.
+- **WebDAV:** any server (NAS, Nextcloud). Enter the folder address, user name and password;
+  the app checks the login and creates the folder. Plain http works for servers on the local network.
+- **iCloud:** needs a paid Apple Developer team. Set `DEVELOPMENT_TEAM` and `ICLOUD_SYNC_ENABLED = YES`
+  in `Config/Identity.xcconfig`. With a free team the option is greyed out.
+- **Conflicts:** when an entry's text changed on two devices, the older change is kept under
+  Settings > Sync > Conflicted Copies. See `docs/SYNC_FORMAT.md` for all the rules.

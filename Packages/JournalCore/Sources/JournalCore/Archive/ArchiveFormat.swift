@@ -26,7 +26,7 @@ public enum ArchiveFormat {
         return "Media/\(name.prefix(2))/\(file)"
     }
 
-    static func makeEncoder() -> JSONEncoder {
+    public static func makeEncoder() -> JSONEncoder {
         let encoder = JSONEncoder()
         encoder.outputFormatting = [.prettyPrinted, .sortedKeys, .withoutEscapingSlashes]
         encoder.dateEncodingStrategy = .custom { date, encoder in
@@ -36,7 +36,7 @@ public enum ArchiveFormat {
         return encoder
     }
 
-    static func makeDecoder() -> JSONDecoder {
+    public static func makeDecoder() -> JSONDecoder {
         let decoder = JSONDecoder()
         decoder.dateDecodingStrategy = .custom { decoder in
             let container = try decoder.singleValueContainer()
@@ -66,6 +66,8 @@ public struct TagRecord: Codable, Sendable, Equatable {
     public var sortOrder: Int
     public var createdAt: Date
     public var modifiedAt: Date
+    /// Only set in sync records (tombstones). Archives hold live tags only.
+    public var deletedAt: Date? = nil
 }
 
 public struct AttachmentRecord: Codable, Sendable, Equatable {
@@ -87,6 +89,8 @@ public struct AttachmentRecord: Codable, Sendable, Equatable {
     public var modifiedAt: Date
     /// Path of the file inside the archive, or nil if the file was missing at export.
     public var file: String?
+    /// Only set in sync records (tombstones). Archives hold live attachments only.
+    public var deletedAt: Date? = nil
 }
 
 public struct EntryRecord: Codable, Sendable, Equatable {
@@ -108,6 +112,8 @@ public struct EntryRecord: Codable, Sendable, Equatable {
     public var sourceID: String?
     public var createdAt: Date
     public var modifiedAt: Date
+    /// Only set in sync records (tombstones). Archives hold live entries only.
+    public var deletedAt: Date? = nil
 }
 
 public struct ArchiveExportSummary: Sendable, Equatable {
