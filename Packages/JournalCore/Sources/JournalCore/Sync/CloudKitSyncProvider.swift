@@ -172,7 +172,7 @@ public actor CloudKitSyncProvider: SyncProvider {
 
 extension SyncError {
     /// A friendlier message for common CloudKit errors.
-    static func describe(_ error: any Error) -> String {
+    public static func describe(_ error: any Error) -> String {
         if let ck = error as? CKError {
             switch ck.code {
             case .networkUnavailable, .networkFailure: return String(localized: "No internet connection.")
